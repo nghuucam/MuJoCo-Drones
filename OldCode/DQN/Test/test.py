@@ -15,19 +15,18 @@ for path in [current_dir, parent_dir, root_dir]:
 from multi_drone_mujoco.utils.enums import DroneModel
 from multi_drone_mujoco.control.dsl_pid_control import DSLPIDControl
 from mujoco_env import DroneEnv 
-from agent import D3QN, DroneNet
+from agent import DQN, DroneNet
 
 # ==============================================================================
 # 🎯 CẤU HÌNH ĐƯỜNG DẪN MÔ HÌNH (NẠP FILE .PTH ĐỂ TEST)
 # ==============================================================================
 # Bạn có thể thay đổi đường dẫn file .pth của bạn tại đây:
-# MODEL_PATH = os.path.join(parent_dir, "Single", "Model", "drone_model_d3qn_eposide200.pth")
 
 # Ví dụ nếu bạn muốn dùng model của Parallel:
-# MODEL_PATH = os.path.join(parent_dir, "Parallel", "Model", "drone_model_parallel_eposide250.pth")
+MODEL_PATH = os.path.join(parent_dir, "Single", "Model", "drone_model_dqn_eposide400.pth")
 
 # Hoặc truyền đường dẫn tuyệt đối trực tiếp:
-MODEL_PATH = r"C:\KLTN\MuJoCo-Drones\d3qn_nav\D3QN\Single\Model\drone_model_d3qn_eposide400.pth"
+# MODEL_PATH = r"C:\KLTN\MuJoCo-Drones\OldCode\DQN\Single\Model\drone_model_dqn_eposide200.pth"
 # ==============================================================================
 
 def get_action_hints(obs, env, direct):
@@ -150,7 +149,7 @@ def move(target_pos, obs, control, env):
 
 def main():
     print("=================================================================")
-    print("🚀 BẮT ĐẦU CHƯƠNG TRÌNH TEST MÔ HÌNH D3QN DRONE (MUJOCO GUI)")
+    print("🚀 BẮT ĐẦU CHƯƠNG TRÌNH TEST MÔ HÌNH STANDARD DQN DRONE (MUJOCO GUI)")
     print("=================================================================")
     
     # Kiểm tra sự tồn tại của file Model
@@ -175,10 +174,10 @@ def main():
     # Khởi tạo môi trường với GUI = True để xem trực quan
     env = DroneEnv(gui=True)
     model = DroneNet(n_actions=5, state_vector_dim=21)
-    d3qn_agent = D3QN(model, n_actions=5)
+    dqn_agent = DQN(model, n_actions=5)
     
     # Load trọng số model
-    d3qn_agent.load(target_model_path)
+    dqn_agent.load(target_model_path)
     control = DSLPIDControl(env=env)
 
     MAX_TEST_EPISODES = 20
@@ -222,7 +221,7 @@ def main():
             s_vec = get_vec_state(obs, env, action_hints)
 
             # Đánh giá hoàn toàn (Epsilon = 0.0 - chọn hành động tối ưu nhất từ mạng)
-            q_values, action_idx = d3qn_agent.get_action(s_img, s_vec, eps=0.0)
+            q_values, action_idx = dqn_agent.get_action(s_img, s_vec, eps=0.0)
 
             print(f"  👉 Bước {action_count}: Q-Values={q_values} -> Chọn: {action_names[action_idx]}")
 

@@ -20,8 +20,8 @@ try:
     from mujoco_env import DroneEnv
     from agent import D3QN, DroneNet
 except ImportError:
-    from d3qn_nav.D3QN.mujoco_env import DroneEnv 
-    from d3qn_nav.D3QN.agent import D3QN, DroneNet
+    from OldCode.D3QN.mujoco_env import DroneEnv 
+    from OldCode.D3QN.agent import D3QN, DroneNet
 
 def get_action_hints(obs, env, direct):
     state = obs[0:3]
