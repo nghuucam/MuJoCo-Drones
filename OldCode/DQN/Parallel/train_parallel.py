@@ -20,24 +20,48 @@ from multi_drone_mujoco.control.dsl_pid_control import DSLPIDControl
 from mujoco_env import DroneEnv 
 from agent import DQN, DroneNet
 
-def get_action_hints(obs, env_goal, direct):
+def get_action_hints(obs, env_goal, direct, sensors=None):
+    goal_pos = env_goal[0] if hasattr(env_goal, "__len__") and len(env_goal) > 0 and isinstance(env_goal[0], (list, np.ndarray)) else env_goal
     state = obs[0:3]
-    current_dist = np.linalg.norm(state - env_goal[0])
+    current_dist = np.linalg.norm(state - goal_pos)
     hints = []
     for target in direct:
-        future_dist = np.linalg.norm(target - env_goal[0])
+        future_dist = np.linalg.norm(target - goal_pos)
         progress = current_dist - future_dist
         hints.append(progress)
     hints = np.array(hints, dtype=np.float32)
     max_val = np.max(np.abs(hints)) + 1e-8
-    return (hints / max_val) * 0.3
+    hints = (hints / max_val) * 0.3
+
+    if sensors is not None:
+        d = np.array(sensors, dtype=np.float32) * 5.0
+        if min(d[3], d[4], d[5]) < 1.8:
+            hints[0] = -0.4
+        if min(d[7], d[8]) < 1.3:
+            hints[1] = -0.4
+        if min(d[0], d[1]) < 1.3:
+            hints[2] = -0.4
+        if min(d[2], d[3]) < 1.5:
+            hints[3] = -0.4
+        if min(d[5], d[6]) < 1.5:
+            hints[4] = -0.4
+
+    return hints
+
+def format_lidar_str(sensor_fracs, max_range=5.0):
+    d = np.array(sensor_fracs, dtype=np.float32) * max_range
+    def mark(val):
+        return f"{val:.1f}⚠️" if val < 1.5 else f"{val:.1f}"
+
+    return (f"  📡 LiDAR (m): [L90: {mark(d[0])} | L67: {mark(d[1])} | L45: {mark(d[2])} | L22: {mark(d[3])} | "
+            f"F0: {mark(d[4])} | R22: {mark(d[5])} | R45: {mark(d[6])} | R67: {mark(d[7])} | R90: {mark(d[8])}]")
 
 def get_vec_state(obs, env_goal, action_hints, raycast_sensors):
-    pos   = obs[0:3]    # 3
-    rpy   = obs[7:10]   # 3
-    vel   = obs[10:13]  # 3
-    ang_v = obs[13:16]  # 3
-    vec = np.concatenate([pos, rpy, vel, ang_v, action_hints, raycast_sensors]) 
+    pos   = obs[0:3]
+    rpy   = obs[7:10]
+    vel   = obs[10:13]
+    rel_goal = env_goal[0] - pos
+    vec = np.concatenate([rpy, vel, rel_goal, action_hints, raycast_sensors]) 
     return np.expand_dims(vec, axis=0)
 
 def get_img_state(rgb_img):
@@ -205,11 +229,11 @@ def main():
         proc.start()
         workers.append((proc, parent_conn))
 
-    model = DroneNet(n_actions=5, state_vector_dim=21)
+    model = DroneNet(n_actions=5, state_vector_dim=23)
     dqn_agent = DQN(model, n_actions=5)
 
     max_eposide0 = 200
-    max_eposide = 500
+    max_eposide = 400
     max_epsilon = 1.0
     min_epsilon = 0.1
     reduce_epsilon = (max_epsilon - min_epsilon) / max_eposide0
@@ -232,7 +256,6 @@ def main():
     log_loss_f = open(log_loss_file, mode='a', newline='', encoding='utf-8')
     log_loss_writer = csv.writer(log_loss_f)
 
-    # 1. Khởi động môi trường ban đầu cho tất cả worker
     for i in range(NUM_ENVS):
         workers[i][1].send(("reset", "begin"))
     
@@ -269,7 +292,6 @@ def main():
 
     while total_episodes < max_eposide:
         try:
-            # 2. Thu thập hành động từ mạng DQN cho N worker
             actions = []
             s_imgs = []
             s_vecs = []
@@ -288,7 +310,7 @@ def main():
                           np.array([x + RANGE, y - RANGE, 1.0]),
                           np.array([x - RANGE, y - RANGE, 1.0])]
                 
-                hints = get_action_hints(obs, env_goal, direct)
+                hints = get_action_hints(obs, env_goal, direct, sensors)
                 s_img = get_img_state(rgb)
                 s_vec = get_vec_state(obs, env_goal, hints, sensors)
                 
@@ -301,7 +323,6 @@ def main():
                 target_pos = direct[action_idx]
                 workers[i][1].send(("step_action", target_pos))
 
-            # 3. Thu thập kết quả từ N worker
             for i in range(NUM_ENVS):
                 status, payload = workers[i][1].recv()
                 if status == "ERROR":
@@ -310,15 +331,27 @@ def main():
                 
                 next_obs, rgb_next, sensors_next, reward, terminated, truncated, info_str, start, goal = payload
                 
+                reward -= 0.10
+
+                last_act = states_info[i].get('last_action', None)
+                if last_act is not None:
+                    if (last_act == 1 and actions[i] == 2) or \
+                       (last_act == 2 and actions[i] == 1) or \
+                       (last_act == 3 and actions[i] == 4) or \
+                       (last_act == 4 and actions[i] == 3):
+                        reward -= 5.0
+                states_info[i]['last_action'] = actions[i]
+
                 states_info[i]['action_count'] += 1
                 action_count = states_info[i]['action_count']
+
+                if action_count >= MAX_ACTIONS:
+                    reward -= 25.0
+
                 states_info[i]['accum_reward'] += reward
 
                 is_truncated_bool = truncated[0] if isinstance(truncated, tuple) else bool(truncated)
                 done = is_truncated_bool or terminated or (action_count >= MAX_ACTIONS)
-
-                if action_count >= MAX_ACTIONS:
-                    reward -= 200
 
                 x1, y1, z1 = next_obs[0:3]
                 direct1 = [np.array([x1, y1 - RANGE, 1.0]),
@@ -327,7 +360,7 @@ def main():
                            np.array([x1 + RANGE, y1 - RANGE, 1.0]),
                            np.array([x1 - RANGE, y1 - RANGE, 1.0])]
                 
-                hints1 = get_action_hints(next_obs, goal, direct1)
+                hints1 = get_action_hints(next_obs, goal, direct1, sensors_next)
                 ns_img = get_img_state(rgb_next)
                 ns_vec = get_vec_state(next_obs, goal, hints1, sensors_next)
 
@@ -380,7 +413,8 @@ def main():
                         'start': start_r,
                         'goal': goal_r,
                         'action_count': 0,
-                        'accum_reward': 0.0
+                        'accum_reward': 0.0,
+                        'last_action': None
                     }
                 else:
                     states_info[i]['obs'] = next_obs
@@ -390,6 +424,8 @@ def main():
             if total_episodes > 0 and total_episodes % 50 == 0:
                 save_path = os.path.join(current_dir, "Model", f"drone_model_parallel_dqn_eposide{total_episodes}.pth")
                 dqn_agent.save(save_path)
+                buffer_path = os.path.join(current_dir, "Model", f"replay_buffer_parallel_dqn_eposide{total_episodes}.pkl")
+                dqn_agent.save_buffer(buffer_path)
 
         except Exception as e:
             print(f"💥 Lỗi luồng chính: {e}")

@@ -26,7 +26,7 @@ class ReplayBuffer():
 
 class DroneNet(nn.Module):
     """Mạng DQN Tiêu chuẩn (Standard DQN) với 1 luồng q_stream trực tiếp."""
-    def __init__(self, n_actions=5, state_vector_dim=21, img_shape=(3, 64, 64)):
+    def __init__(self, n_actions=5, state_vector_dim=23, img_shape=(3, 64, 64)):
         super(DroneNet, self).__init__()
         
         self.conv = nn.Sequential(
@@ -41,18 +41,24 @@ class DroneNet(nn.Module):
         
         with torch.no_grad():
             dummy_img = torch.zeros(1, *img_shape)
-            conv_out_dim = self.conv(dummy_img).shape[1]  # 4096 cho ảnh 64x64
+            conv_out_dim = self.conv(dummy_img).shape[1]
             
-        self.vector_fc = nn.Sequential(
-            nn.Linear(state_vector_dim, 64),
+        self.img_fc = nn.Sequential(
+            nn.Linear(conv_out_dim, 512),
             nn.ReLU(),
-            nn.Linear(64, 64),
+            nn.Linear(512, 128),
             nn.ReLU()
         )
         
-        combined_dim = conv_out_dim + 64  # 4096 + 64 = 4160
+        self.vector_fc = nn.Sequential(
+            nn.Linear(state_vector_dim, 128),
+            nn.ReLU(),
+            nn.Linear(128, 128),
+            nn.ReLU()
+        )
         
-        # Mạng DQN tiêu chuẩn sử dụng 1 luồng duy nhất để tính trực tiếp Q-values
+        combined_dim = 128 + 128
+        
         self.q_stream = nn.Sequential(
             nn.Linear(combined_dim, 256),
             nn.ReLU(),
@@ -60,7 +66,7 @@ class DroneNet(nn.Module):
         )
 
     def forward(self, image, state_vector):
-        img_feat = self.conv(image)
+        img_feat = self.img_fc(self.conv(image))
         vec_feat = self.vector_fc(state_vector)
         
         vec_feat = vec_feat.view(vec_feat.size(0), -1)
@@ -129,18 +135,14 @@ class DQN():
         r_t = torch.FloatTensor(r).to(self.device)
         d_t = torch.FloatTensor(d).to(self.device)
 
-        # 1. Lấy Q-value hiện tại
         current_q_values = self.model(s_img_t, s_vec_t).gather(1, a_t.unsqueeze(1))
 
-        # 2. Cập nhật Q-Target theo chuẩn Standard DQN (Trực tiếp lấy Max Q từ Target Model)
         with torch.no_grad():
             next_q_values = self.target_model(ns_img_t, ns_vec_t).max(1)[0]
             target_q_values = r_t + (self.gamma * next_q_values * (1 - d_t))
 
-        # 3. Tính Loss (Smooth L1 Loss)
         loss = nn.SmoothL1Loss()(current_q_values, target_q_values.unsqueeze(1))
         
-        # 4. Backpropagation
         self.optimizer.zero_grad()
         loss.backward()
         
@@ -150,7 +152,6 @@ class DQN():
                 
         self.optimizer.step()
 
-        # 5. Soft Update
         tau = 0.005 
         for target_param, online_param in zip(self.target_model.parameters(), self.model.parameters()):
             target_param.data.copy_(tau * online_param.data + (1.0 - tau) * target_param.data)
@@ -169,3 +170,16 @@ class DQN():
         self.model.load_state_dict(torch.load(filename, map_location=self.device))
         self.target_model.load_state_dict(self.model.state_dict())
         print(f"--- Đã tải Model DQN từ {filename} ---")
+
+    def save_buffer(self, filename):
+        import pickle
+        with open(filename, 'wb') as f:
+            pickle.dump(list(self.memory), f)
+        print(f"💾 Đã lưu ReplayBuffer ({len(self.memory)} mẫu) vào {filename}")
+
+    def load_buffer(self, filename):
+        import pickle
+        with open(filename, 'rb') as f:
+            data = pickle.load(f)
+            self.memory.extend(data)
+        print(f"📂 Đã nạp {len(data)} mẫu vào ReplayBuffer từ {filename}")

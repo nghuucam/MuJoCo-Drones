@@ -71,7 +71,6 @@ def compare_two_logs(file1, name1, file2, name2, window_size=30):
     fig, axes = plt.subplots(2, 2, figsize=(16, 10))
     fig.suptitle(f'So sánh Kết quả Huấn luyện DQN: {name1} vs {name2}', fontsize=16, fontweight='bold')
 
-    # 1. Biểu đồ Điểm thưởng (Accumulated Reward)
     ax1 = axes[0, 0]
     if res1 is not None:
         ep1, col1 = res1
@@ -91,7 +90,6 @@ def compare_two_logs(file1, name1, file2, name2, window_size=30):
     ax1.grid(True, linestyle='--', alpha=0.6)
     ax1.legend()
 
-    # 2. Biểu đồ Tỷ lệ thắng trượt
     ax2 = axes[0, 1]
     if res1 is not None:
         ep1, col1 = res1
@@ -110,7 +108,6 @@ def compare_two_logs(file1, name1, file2, name2, window_size=30):
     ax2.grid(True, linestyle='--', alpha=0.6)
     ax2.legend()
 
-    # 3. Biểu đồ Cột phân bố kết quả
     ax3 = axes[1, 0]
     categories = ['Thắng (Win)', 'Va chạm', 'Hết bước', 'Ra ngoài map']
     vals1 = [w1, c1, os1, om1]
@@ -129,7 +126,6 @@ def compare_two_logs(file1, name1, file2, name2, window_size=30):
     ax3.grid(axis='y', linestyle='--', alpha=0.6)
     ax3.legend()
 
-    # 4. Biểu đồ So sánh Loss
     ax4 = axes[1, 1]
     loss_file1 = file1.replace("drone_flight_log", "log_loss")
     loss_file2 = file2.replace("drone_flight_log", "log_loss")

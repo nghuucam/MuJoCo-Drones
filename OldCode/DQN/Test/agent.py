@@ -26,7 +26,7 @@ class ReplayBuffer():
 
 class DroneNet(nn.Module):
     """Mạng DQN Tiêu chuẩn (Standard DQN) với 1 luồng q_stream trực tiếp."""
-    def __init__(self, n_actions=5, state_vector_dim=21, img_shape=(3, 64, 64)):
+    def __init__(self, n_actions=5, state_vector_dim=23, img_shape=(3, 64, 64)):
         super(DroneNet, self).__init__()
         
         self.conv = nn.Sequential(
@@ -43,14 +43,21 @@ class DroneNet(nn.Module):
             dummy_img = torch.zeros(1, *img_shape)
             conv_out_dim = self.conv(dummy_img).shape[1]
             
-        self.vector_fc = nn.Sequential(
-            nn.Linear(state_vector_dim, 64),
+        self.img_fc = nn.Sequential(
+            nn.Linear(conv_out_dim, 512),
             nn.ReLU(),
-            nn.Linear(64, 64),
+            nn.Linear(512, 128),
             nn.ReLU()
         )
         
-        combined_dim = conv_out_dim + 64
+        self.vector_fc = nn.Sequential(
+            nn.Linear(state_vector_dim, 128),
+            nn.ReLU(),
+            nn.Linear(128, 128),
+            nn.ReLU()
+        )
+        
+        combined_dim = 128 + 128
         
         self.q_stream = nn.Sequential(
             nn.Linear(combined_dim, 256),
@@ -59,7 +66,7 @@ class DroneNet(nn.Module):
         )
 
     def forward(self, image, state_vector):
-        img_feat = self.conv(image)
+        img_feat = self.img_fc(self.conv(image))
         vec_feat = self.vector_fc(state_vector)
         
         vec_feat = vec_feat.view(vec_feat.size(0), -1)

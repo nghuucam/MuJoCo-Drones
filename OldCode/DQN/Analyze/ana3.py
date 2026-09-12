@@ -3,92 +3,91 @@ import sys
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
-import re
 
 base_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(base_dir)
+oldcode_dir = os.path.dirname(parent_dir)
 
-def find_csv(filename):
-    candidates = [
-        os.path.join(parent_dir, "Single", filename),
-        os.path.join(parent_dir, "Parallel", filename),
-        os.path.join(parent_dir, filename),
-        os.path.join(base_dir, filename)
-    ]
-    for c in candidates:
-        if os.path.exists(c):
-            return c
-    return candidates[0]
+def find_file(rel_paths):
+    for p in rel_paths:
+        if os.path.exists(p):
+            return p
+    return None
 
-file_name = find_csv("neutron_array_DQN.csv")
-if not os.path.exists(file_name):
-    file_name = find_csv("neutron_array_parallel_DQN.csv")
+d3qn_candidates = [
+    os.path.join(oldcode_dir, "D3QN", "Parallel", "drone_flight_log_parallel_D3QN.csv"),
+    os.path.join(parent_dir, "Parallel", "drone_flight_log_parallel_D3QN.csv")
+]
 
-if not os.path.exists(file_name):
-    print(f"❌ Không tìm thấy file Q-Value / Action log CSV cho Standard DQN!")
-    sys.exit(1)
+dqn_candidates = [
+    os.path.join(oldcode_dir, "DQN", "Parallel", "drone_flight_log_parallel_DQN.csv"),
+    os.path.join(parent_dir, "Parallel", "drone_flight_log_parallel_DQN.csv")
+]
 
-print(f"📊 Đang đọc dữ liệu Q-Values và Action từ: {file_name}")
-df = pd.read_csv(file_name, comment='#')
+f_d3qn = find_file(d3qn_candidates)
+f_dqn = find_file(dqn_candidates)
 
-ep_col = 'Episode' if 'Episode' in df.columns else ('Eposide' if 'Eposide' in df.columns else 'Step')
-act_col = 'Action_Decide' if 'Action_Decide' in df.columns else ('Action' if 'Action' in df.columns else None)
-
-def extract_max_q(action_string):
-    if pd.isna(action_string):
-        return np.nan
-    clean_string = str(action_string).replace('float32', '').replace('float64', '')
-    numbers = re.findall(r"[-+]?(?:\d*\.\d+|\d+)", clean_string)
-    if not numbers:
-        return np.nan
-    return max([float(num) for num in numbers])
-
-if 'List_Actions' in df.columns:
-    df['Max_Q_Value'] = df['List_Actions'].apply(extract_max_q)
-else:
-    df['Max_Q_Value'] = np.nan
-
-episode_stats = df.groupby(ep_col).agg(
-    Epsilon=('Epsilon', 'last') if 'Epsilon' in df.columns else (ep_col, 'count'),
-    Avg_Max_Q=('Max_Q_Value', 'mean')
-).reset_index()
-
-episode_stats['Moving_Q'] = episode_stats['Avg_Max_Q'].rolling(window=20, min_periods=1).mean()
+df_d3qn = pd.read_csv(f_d3qn) if f_d3qn else None
+df_dqn = pd.read_csv(f_dqn) if f_dqn else None
 
 fig, axes = plt.subplots(2, 1, figsize=(12, 10))
 
-# 1. Biểu đồ Q-Value & Epsilon
+# Subplot 1: Epsilon vs Win Rate progression
 ax1 = axes[0]
-if not episode_stats['Avg_Max_Q'].dropna().empty:
-    line1 = ax1.plot(episode_stats[ep_col], episode_stats['Avg_Max_Q'], alpha=0.3, color='orange', label='Q-Value từng tập')
-    line2 = ax1.plot(episode_stats[ep_col], episode_stats['Moving_Q'], color='red', linewidth=2, label='Q-Value trung bình (20 tập)')
-    ax1.set_ylabel('Giá trị Q-Value', color='red', fontweight='bold')
-    ax1.tick_params(axis='y', labelcolor='red')
+if df_d3qn is not None:
+    w_d3qn = df_d3qn['Win'].rolling(window=30, min_periods=1).mean() * 100
+    ax1.plot(df_d3qn['Episode'], w_d3qn, color='#27ae60', linewidth=2.5, label='D3QN Win Rate (SMA 30)')
+if df_dqn is not None:
+    w_dqn = df_dqn['Win'].rolling(window=30, min_periods=1).mean() * 100
+    ax1.plot(df_dqn['Episode'], w_dqn, color='#c0392b', linewidth=2.5, linestyle='--', label='DQN Win Rate (SMA 30)')
 
+ax1.set_ylabel('Win Rate (%)', color='#2c3e50', fontweight='bold')
+ax1.set_ylim(-5, 105)
 ax1.grid(True, linestyle='--', alpha=0.6)
 
-if 'Epsilon' in episode_stats.columns:
-    ax2 = ax1.twinx()
-    line3 = ax2.plot(episode_stats[ep_col], episode_stats['Epsilon'], color='purple', linewidth=2.5, linestyle='--', label='Epsilon')
-    ax2.set_ylabel('Tỷ lệ khám phá (Epsilon)', color='purple', fontweight='bold')
-    ax2.tick_params(axis='y', labelcolor='purple')
-    ax2.set_ylim(-0.05, 1.05)
+if df_d3qn is not None and 'Epsilon' in df_d3qn.columns:
+    ax1_twin = ax1.twinx()
+    ax1_twin.plot(df_d3qn['Episode'], df_d3qn['Epsilon'], color='#8e44ad', linewidth=2, linestyle=':', label='Epsilon Decay')
+    ax1_twin.set_ylabel('Tỷ lệ Khám phá (Epsilon)', color='#8e44ad', fontweight='bold')
+    ax1_twin.tick_params(axis='y', labelcolor='#8e44ad')
+    ax1_twin.set_ylim(-0.05, 1.05)
 
-ax1.set_title('1. Tương quan giữa Tỷ lệ Khám phá (Epsilon) và Q-Value của Standard DQN (MuJoCo)', pad=15)
+ax1.set_title('1. Tương quan giữa Giảm Epsilon và Tỷ lệ Chiến thắng (D3QN vs DQN)', fontsize=13, fontweight='bold')
+lines1, labels1 = ax1.get_legend_handles_labels()
+if df_d3qn is not None and 'Epsilon' in df_d3qn.columns:
+    lines2, labels2 = ax1_twin.get_legend_handles_labels()
+    ax1.legend(lines1 + lines2, labels1 + labels2, loc='upper left')
+else:
+    ax1.legend(loc='upper left')
 
-# 2. Biểu đồ Phân phối Lựa chọn Hành động
-ax_bar = axes[1]
-if act_col and act_col in df.columns:
-    action_counts = df[act_col].value_counts()
-    ax_bar.bar(action_counts.index, action_counts.values, color='teal', alpha=0.85)
-    ax_bar.set_title('2. Phân phối lựa chọn Hành động (Action Distribution) của Standard DQN')
-    ax_bar.set_ylabel('Số lần chọn')
-    ax_bar.tick_params(axis='x', rotation=30)
-    ax_bar.grid(axis='y', linestyle='--', alpha=0.6)
+# Subplot 2: Phân bố Reward theo 2 giai đoạn (Epsilon > 0.3 vs Epsilon <= 0.3)
+ax2 = axes[1]
+data_to_plot = []
+labels = []
+colors = ['#a8e6cf', '#27ae60', '#ffaaa5', '#c0392b']
 
-plt.tight_layout(h_pad=3.0)
+if df_d3qn is not None and 'Epsilon' in df_d3qn.columns:
+    d3qn_explore = df_d3qn[df_d3qn['Epsilon'] > 0.3]['AccumReward'].values
+    d3qn_exploit = df_d3qn[df_d3qn['Epsilon'] <= 0.3]['AccumReward'].values
+    data_to_plot.extend([d3qn_explore, d3qn_exploit])
+    labels.extend(['D3QN Thăm dò (ε>0.3)', 'D3QN Khai thác (ε≤0.3)'])
 
-out_path = os.path.join(base_dir, "ana3_dqn_qval_action.png")
+if df_dqn is not None and 'Epsilon' in df_dqn.columns:
+    dqn_explore = df_dqn[df_dqn['Epsilon'] > 0.3]['AccumReward'].values
+    dqn_exploit = df_dqn[df_dqn['Epsilon'] <= 0.3]['AccumReward'].values
+    data_to_plot.extend([dqn_explore, dqn_exploit])
+    labels.extend(['DQN Thăm dò (ε>0.3)', 'DQN Khai thác (ε≤0.3)'])
+
+if data_to_plot:
+    bplot = ax2.boxplot(data_to_plot, patch_artist=True, tick_labels=labels, showmeans=True,
+                        meanprops={"marker":"o", "markerfacecolor":"white", "markeredgecolor":"black"})
+    for patch, color in zip(bplot['boxes'], colors[:len(data_to_plot)]):
+        patch.set_facecolor(color)
+    ax2.set_title('2. Phân bố Điểm thưởng (Reward Distribution) theo Giai đoạn Học', fontsize=13, fontweight='bold')
+    ax2.set_ylabel('Điểm thưởng (Reward)')
+    ax2.grid(True, linestyle='--', alpha=0.6)
+
+out_path = os.path.join(base_dir, "ana3_compare_epsilon_reward.png")
+plt.tight_layout()
 plt.savefig(out_path, dpi=300)
-print(f"🖼️ Đã lưu đồ thị Q-Value & Action vào: {out_path}")
-plt.show()
+print(f"🖼️ Đã lưu đồ thị Epsilon & Reward vào: {out_path}")

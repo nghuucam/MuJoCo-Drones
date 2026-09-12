@@ -23,13 +23,14 @@ except ImportError:
     from OldCode.D3QN.mujoco_env import DroneEnv 
     from OldCode.D3QN.agent import D3QN, DroneNet
 
-def get_action_hints(obs, env, direct):
+def get_action_hints(obs, env, direct, sensors=None):
+    goal_pos = env.goal[0] if hasattr(env, "goal") else (env[0] if isinstance(env, (list, np.ndarray)) else env)
     state = obs[0:3]
-    current_dist = np.linalg.norm(state - env.goal[0])
+    current_dist = np.linalg.norm(state - goal_pos)
     
     hints = []
     for target in direct:
-        future_dist = np.linalg.norm(target - env.goal[0])
+        future_dist = np.linalg.norm(target - goal_pos)
         progress = current_dist - future_dist
         hints.append(progress)
     
@@ -37,18 +38,42 @@ def get_action_hints(obs, env, direct):
     max_val = np.max(np.abs(hints)) + 1e-8
     hints = (hints / max_val) * 0.3
     
+    if sensors is None and hasattr(env, "get_raycast_sensors"):
+        sensors = env.get_raycast_sensors()
+        
+    if sensors is not None:
+        d = np.array(sensors, dtype=np.float32) * 5.0
+        if min(d[3], d[4], d[5]) < 1.8:
+            hints[0] = -0.4
+        if min(d[7], d[8]) < 1.3:
+            hints[1] = -0.4
+        if min(d[0], d[1]) < 1.3:
+            hints[2] = -0.4
+        if min(d[2], d[3]) < 1.5:
+            hints[3] = -0.4
+        if min(d[5], d[6]) < 1.5:
+            hints[4] = -0.4
+
     return hints
 
-def get_vec_state(obs, env, action_hints):
-    pos   = obs[0:3]    # 3
-    rpy   = obs[7:10]   # 3
-    vel   = obs[10:13]  # 3
-    ang_v = obs[13:16]  # 3
-    hints = action_hints  # 5
-    
-    four_sensors = env.get_raycast_sensors()
+def format_lidar_str(sensor_fracs, max_range=5.0):
+    d = np.array(sensor_fracs, dtype=np.float32) * max_range
+    def mark(val):
+        return f"{val:.1f}⚠️" if val < 1.5 else f"{val:.1f}"
 
-    vec = np.concatenate([pos, rpy, vel, ang_v, hints, four_sensors]) 
+    return (f"  📡 LiDAR (m): [L90: {mark(d[0])} | L67: {mark(d[1])} | L45: {mark(d[2])} | L22: {mark(d[3])} | "
+            f"F0: {mark(d[4])} | R22: {mark(d[5])} | R45: {mark(d[6])} | R67: {mark(d[7])} | R90: {mark(d[8])}]")
+
+def get_vec_state(obs, env, action_hints):
+    pos   = obs[0:3]
+    rpy   = obs[7:10]
+    vel   = obs[10:13]
+    rel_goal = env.goal[0] - pos
+    hints = action_hints
+    
+    lidar_sensors = env.get_raycast_sensors()
+
+    vec = np.concatenate([rpy, vel, rel_goal, hints, lidar_sensors]) 
     return np.expand_dims(vec, axis=0)
 
 def get_img_state(rgb_img):
@@ -69,7 +94,9 @@ def go_up(obs, control, env):
     start_time = time.time()
     TIMEOUT = 10.0
 
+    step_count = 0
     while True:
+        step_count += 1
         cur_obs = env._getDroneStateVector(0)
         cur_pos = cur_obs[0:3]
         cur_quat = cur_obs[3:7]  
@@ -92,7 +119,15 @@ def go_up(obs, control, env):
         if isinstance(obs_ret, tuple):
             obs_ret = obs_ret[0]
 
+        if step_count % 2 == 0:
+            live_sensors = env.get_raycast_sensors()
+            sys.stdout.write(f"\r{format_lidar_str(live_sensors)}    ")
+            sys.stdout.flush()
+
         if (abs(cur_pos[2] - 1.0) < 0.08 and np.linalg.norm(cur_vel) < 0.20) or (time.time() - start_time > TIMEOUT):
+            live_sensors = env.get_raycast_sensors()
+            sys.stdout.write(f"\r{format_lidar_str(live_sensors)}    \n")
+            sys.stdout.flush()
             print(f"🚀 Đã bay lên độ cao {cur_pos[2]:.2f}m an toàn (MuJoCo)!")
             break
 
@@ -134,6 +169,11 @@ def move(target_pos, obs, control, env):
         accumulated_reward += reward
         obs = next_obs
         
+        if step % 2 == 0:
+            live_sensors = env.get_raycast_sensors()
+            sys.stdout.write(f"\r{format_lidar_str(live_sensors)}    ")
+            sys.stdout.flush()
+
         dist_to_target = np.linalg.norm(cur_pos[0:2] - target_pos[0:2])
         speed = np.linalg.norm(cur_vel)
         wobble_speed = np.linalg.norm(cur_ang_v)
@@ -144,20 +184,23 @@ def move(target_pos, obs, control, env):
         if terminated or (isinstance(truncated, tuple) and truncated[0]):
             break            
     
+    live_sensors = env.get_raycast_sensors()
+    sys.stdout.write(f"\r{format_lidar_str(live_sensors)}    \n")
+    sys.stdout.flush()
     return obs, img, accumulated_reward, terminated, truncated, info 
 
 def main():
     os.makedirs(os.path.join(current_dir, "Model"), exist_ok=True)
 
-    env = DroneEnv(gui=False)
-    model = DroneNet(n_actions=5, state_vector_dim=21)
+    env = DroneEnv(gui=True, show_lidar=True)
+    model = DroneNet(n_actions=5, state_vector_dim=23)
     d3qn_agent = D3QN(model, n_actions=5)
     control = DSLPIDControl(env=env)
     start_step = 1
 
     eposide = 1
     max_eposide0 = 200
-    max_eposide = 500
+    max_eposide = 400
     
     max_epsilon =  1.0
     min_epsilon = 0.1
@@ -233,8 +276,24 @@ def main():
             
             target_pos = direct[action_idx]
             next_obs, three_img, reward, terminated, truncated, info = move(target_pos=target_pos, obs=obs, control=control, env=env)
-            accum_reward += reward
+
+            reward -= 0.10
+
+            if 'last_action' in locals() and last_action is not None:
+                if (last_action == 1 and action_idx == 2) or \
+                   (last_action == 2 and action_idx == 1) or \
+                   (last_action == 3 and action_idx == 4) or \
+                   (last_action == 4 and action_idx == 3):
+                    reward -= 5.0
+                    print("  ⚠️ Phạt lắc lư đảo ngược hướng (Oscillation Penalty: -5.0)")
+            last_action = action_idx
             action_count += 1
+
+            if action_count >= MAX_ACTIONS: 
+                reward -= 25.0
+                print("Hết lượt di chuyển!!!\n")
+
+            accum_reward += reward
             if isinstance(next_obs, tuple): next_obs = next_obs[0]
 
             is_truncated_bool = truncated[0] if isinstance(truncated, tuple) else bool(truncated)
@@ -254,10 +313,6 @@ def main():
             action_hints1 = get_action_hints(next_obs, env, direct1)
             ns_img = get_img_state(rgb)
             ns_vec = get_vec_state(next_obs, env, action_hints1)
-
-            if action_count >= MAX_ACTIONS: 
-                reward -= 200
-                print("Hết lượt di chuyển!!!\n")
             
             d3qn_agent.store_transition(s_img, s_vec, action_idx, reward, ns_img, ns_vec, done)
             loss = d3qn_agent.learn()
@@ -277,6 +332,17 @@ def main():
             if done:
                 print(f"Màn chơi này thực hiện tổng cộng {action_count} hành động")
                 if is_truncated_bool or terminated or (action_count >= MAX_ACTIONS):
+                    if eposide % 100 == 0 or eposide >= max_eposide:
+                        save_path = os.path.join(current_dir, "Model", f"drone_model_d3qn_eposide{eposide}.pth")
+                        d3qn_agent.save(save_path)
+                        buffer_path = os.path.join(current_dir, "Model", f"replay_buffer_d3qn_eposide{eposide}.pkl")
+                        d3qn_agent.save_buffer(buffer_path)
+
+                    if eposide >= max_eposide:
+                        end_time = time.perf_counter()
+                        print(f"### THỜI GIAN ĐỂ TRAIN BẰNG THUẬT TOÁN D3QN (MuJoCo) LÀ {end_time-start_time:.2f} GIÂY ###\n")
+                        break
+
                     obs, _ = env.reset(options="reset")
                     start_step = 1
                     eposide += 1
@@ -285,6 +351,7 @@ def main():
                     log_loss_writer.writerow([eposide, avg_loss])
                     eposide_losses = []
                     accum_reward = 0
+                    last_action = None
 
                     if max_epsilon > min_epsilon: max_epsilon -= reduce_epison
                     if WIN == "1": print("Màn chơi thành công tới đích !!!\n")
@@ -297,15 +364,6 @@ def main():
                 obs = next_obs
                 s_img = ns_img
                 s_vec = ns_vec
-
-            if eposide > 0 and eposide % 100 == 0:
-                save_path = os.path.join(current_dir, "Model", f"drone_model_d3qn_eposide{eposide}.pth")
-                d3qn_agent.save(save_path)
-            
-            if eposide == max_eposide: 
-                end_time = time.perf_counter()
-                print(f"### THỜI GIAN ĐỂ TRAIN BẰNG THUẬT TOÁN D3QN (MuJoCo) LÀ {end_time-start_time:.2f} GIÂY ###\n")
-                break
         
         except Exception as e:
             print(f"\n💥 MÔI TRƯỜNG BỊ KẸT / LỖI: {e}")

@@ -150,7 +150,7 @@ class DroneEnv(BaseAviary):
     def __init__(self,
                  gui=False,
                  initial_xyzs=None,
-                 initial_rpys=np.array([[0.0, 0.0, -np.pi/2]]),
+                 initial_rpys=np.array([[0.0, 0.0, 0.0]]),
                  drone_model=DroneModel.CF2X,
                  num_drones=1,
                  physics=Physics.MJC,
@@ -158,7 +158,9 @@ class DroneEnv(BaseAviary):
                  ctrl_freq=48,
                  record=False,
                  obstacles=True,
-                 output_folder='results'):
+                 output_folder='results',
+                 show_lidar=True):
+        self.show_lidar = show_lidar
         self.obstacles_position = []
         self.collision = False
         self.win = False
@@ -176,14 +178,13 @@ class DroneEnv(BaseAviary):
                          ctrl_freq=ctrl_freq,
                          gui=gui,
                          record=record,
-                         obstacles=False, # Không dùng 3 vật cản mặc định của BaseAviary
+                         obstacles=False,
                          obs_type=ObservationType.KIN,
                          act_type=ActionType.RPM,
                          vision_attributes=True,
                          initial_xyzs=self.start,
                          initial_rpys=initial_rpys)
         
-        # Load mô hình MuJoCo với 10 vật cản + 1 cột đích
         xml_str = _generate_drone_nav_xml(
             num_drones=num_drones,
             drone_model=drone_model,
@@ -200,8 +201,8 @@ class DroneEnv(BaseAviary):
 
     def _generate_safe_obstacles(self):
         JITTERING = 1.0
-        MIN_DIST_TO_GOAL = 2.5   # Giữ khoảng cách tối thiểu 2.5m tới tâm cột đích, không đè/trùng đích
-        MIN_DIST_TO_START = 2.0  # Giữ khoảng cách tối thiểu 2.0m tới điểm xuất phát
+        MIN_DIST_TO_GOAL = 2.5
+        MIN_DIST_TO_START = 2.0
         
         safe_obstacles = []
         candidates = random.sample(config.obstacle_position, len(config.obstacle_position))
@@ -250,30 +251,28 @@ class DroneEnv(BaseAviary):
         current_dist_to_goal = np.linalg.norm(state[0:3] - self.goal[0])
         progress = self.previous_dist - current_dist_to_goal
 
-        # Cảm biến đo khoảng cách tới vật cản xung quanh (1.0 = trống 5m, <0.35 = gần vật cản <1.75m)
         sensors = self.get_raycast_sensors()
-        min_sensor_dist = np.min(sensors)
+        min_sensor_dist = float(np.min(sensors))
+        d_min_meter = min_sensor_dist * 5.0
 
-        # 1. Base progress reward
-        reward1 = 3.0 * progress
+        front_dist_meter = float(np.min(sensors[3:6])) * 5.0
 
-        # 2. Phân vùng: Vùng trống (Ưu ái đi nhanh) vs Vùng hẹp (Cẩn thận lách vật cản)
-        if min_sensor_dist > 0.35:
-            # Lúc dễ / Đường trống: Thưởng mạnh cho tốc độ tiến tới đích + Phạt nhẹ để tránh sa đà
-            if progress > 0:
-                reward1 += 2.0 * progress  # Thưởng thêm cho tốc độ cao hướng tới đích
-            step_penalty = -0.05          # Phạt thời gian để giục Drone đi nhanh
+        if progress <= 0:
+            reward1 = -0.005
         else:
-            # Lúc khó / Gần vật cản: Giảm phạt thời gian để Drone bình tĩnh xoay xở cẩn thận
-            step_penalty = -0.01
-            if min_sensor_dist > 0.20:
-                reward1 += 0.05           # Thưởng duy trì khoảng cách đệm an toàn với cột
+            if front_dist_meter < 1.8:
+                reward1 = -3.0 * progress
+            else:
+                reward1 = 5.0 * progress
 
-        reward1 += step_penalty
+        D_DANGER = 2.0
+        if d_min_meter < D_DANGER:
+            repulsive_penalty = 0.04 * ((D_DANGER - d_min_meter) / D_DANGER) ** 2
+            reward1 -= repulsive_penalty
 
-        if self.collision: reward1 -= 200.0
-        if self.over_map:  reward1 -= 200.0
-        if self.win:       reward1 += 500.0
+        if self.collision: reward1 -= 25.0
+        if self.over_map:  reward1 -= 25.0
+        if self.win:       reward1 += 50.0
 
         self.previous_dist = current_dist_to_goal
         return float(reward1)
@@ -297,13 +296,11 @@ class DroneEnv(BaseAviary):
         return self._getDroneStateVector(0)
 
     def update_mujoco_bodies(self):
-        # Cập nhật tọa độ 10 vật cản xanh lá trong MuJoCo
         for i, pos in enumerate(self.obstacles_position):
             b_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, f"obstacle_{i}")
             if b_id >= 0:
                 self.model.body_pos[b_id] = [pos[0], pos[1], 1.5]
                 
-        # Cập nhật tọa độ cột đích màu đỏ trong MuJoCo
         g_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "goal_pole")
         if g_id >= 0:
             self.model.body_pos[g_id] = [self.goal[0][0], self.goal[0][1], 1.5]
@@ -394,44 +391,114 @@ class DroneEnv(BaseAviary):
         return False
 
     def get_raycast_sensors(self, nth_drone=0):
-        state = self._getDroneStateVector(0)
-        drone_pos = state[0:3]
+        drone_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, f"drone{nth_drone}")
+        drone_pos = self.data.xpos[drone_id]
+        R = np.array(self.data.xmat[drone_id]).reshape(3, 3)
         MAX_RANGE = 5.0
-        CYLINDER_RADIUS = 1.0
 
-        offset_x_45 = MAX_RANGE * math.sin(math.pi / 4)
-        offset_y_45 = MAX_RANGE * math.cos(math.pi / 4)
-
-        directions = [
-            np.array([-offset_x_45, -offset_y_45]),
-            np.array([offset_x_45, -offset_y_45]),
-            np.array([-MAX_RANGE, 0.0]),
-            np.array([MAX_RANGE, 0.0])
+        angles_rad = [
+             math.pi / 2,
+             3 * math.pi / 8,
+             math.pi / 4,
+             math.pi / 8,
+              0.0,
+            -math.pi / 8,
+            -math.pi / 4,
+            -3 * math.pi / 8,
+            -math.pi / 2,
         ]
 
         sensor_results = []
-        px, py = drone_pos[0], drone_pos[1]
+        self._last_lidar_rays = []
+        geom_id = np.zeros(1, dtype=np.int32)
 
-        for dir_vec in directions:
-            dir_len = np.linalg.norm(dir_vec)
-            dx, dy = dir_vec[0] / dir_len, dir_vec[1] / dir_len
-            min_frac = 1.0
+        for angle in angles_rad:
+            vec_body = np.array([math.sin(angle), -math.cos(angle), 0.0], dtype=np.float64)
+            vec_world = R @ vec_body
 
-            for obs_pos in self.obstacles_position:
-                cx, cy = obs_pos[0], obs_pos[1]
-                vx, vy = px - cx, py - cy
-                
-                b = 2.0 * (vx * dx + vy * dy)
-                c = (vx**2 + vy**2) - (CYLINDER_RADIUS**2)
-                disc = b**2 - 4.0 * c
+            dist = mujoco.mj_ray(self.model, self.data, drone_pos, vec_world, None, 1, drone_id, geom_id)
 
-                if disc >= 0:
-                    t1 = (-b - math.sqrt(disc)) / 2.0
-                    if t1 > 0 and t1 <= MAX_RANGE:
-                        frac = t1 / MAX_RANGE
-                        if frac < min_frac:
-                            min_frac = frac
-            
-            sensor_results.append(min_frac)
+            if dist != -1 and dist <= MAX_RANGE:
+                hit_geom = geom_id[0]
+                body_id = self.model.geom_bodyid[hit_geom]
+                b_name = mujoco.mj_id2name(self.model, mujoco.mjtObj.mjOBJ_BODY, body_id)
+                if b_name and b_name.startswith("obstacle_"):
+                    frac = dist / MAX_RANGE
+                    sensor_results.append(frac)
+                    self._last_lidar_rays.append({
+                        "from": drone_pos.copy(),
+                        "to": drone_pos + vec_world * dist,
+                        "is_hit": True,
+                        "dist": dist
+                    })
+                    continue
+
+            sensor_results.append(1.0)
+            self._last_lidar_rays.append({
+                "from": drone_pos.copy(),
+                "to": drone_pos + vec_world * MAX_RANGE,
+                "is_hit": False,
+                "dist": MAX_RANGE
+            })
 
         return np.array(sensor_results, dtype=np.float32)
+
+    def _draw_lidar_rays(self):
+        if self._viewer is None or not hasattr(self._viewer, "user_scn"):
+            return
+        
+        if not hasattr(self, "_last_lidar_rays") or not self._last_lidar_rays:
+            self.get_raycast_sensors()
+
+        scn = self._viewer.user_scn
+        scn.ngeom = 0
+
+        for ray in self._last_lidar_rays:
+            p_from = ray["from"]
+            p_to = ray["to"]
+            is_hit = ray["is_hit"]
+            dist = ray["dist"]
+
+            if scn.ngeom >= scn.maxgeom - 2:
+                break
+
+            if is_hit:
+                if dist < 1.5:
+                    rgba = np.array([1.0, 0.1, 0.1, 0.95], dtype=np.float32)
+                else:
+                    rgba = np.array([1.0, 0.7, 0.0, 0.85], dtype=np.float32)
+                radius = 0.015
+            else:
+                rgba = np.array([0.0, 0.85, 1.0, 0.35], dtype=np.float32)
+                radius = 0.008
+
+            geom = scn.geoms[scn.ngeom]
+            mujoco.mjv_initGeom(geom, mujoco.mjtGeom.mjGEOM_CAPSULE, np.zeros(3), np.zeros(3), np.eye(3).flatten(), rgba)
+            mujoco.mjv_connector(geom, mujoco.mjtGeom.mjGEOM_CAPSULE, radius, p_from, p_to)
+            scn.ngeom += 1
+
+            if is_hit and scn.ngeom < scn.maxgeom:
+                hit_geom = scn.geoms[scn.ngeom]
+                mujoco.mjv_initGeom(hit_geom, mujoco.mjtGeom.mjGEOM_SPHERE, np.array([0.06, 0.06, 0.06]), p_to, np.eye(3).flatten(), np.array([1.0, 0.0, 0.0, 1.0], dtype=np.float32))
+                scn.ngeom += 1
+
+    def toggle_lidar(self):
+        """Bật/tắt hiển thị tia laser LiDAR 3D trên GUI."""
+        self.show_lidar = not getattr(self, "show_lidar", True)
+        if not self.show_lidar and self._viewer is not None and hasattr(self._viewer, "user_scn"):
+            self._viewer.user_scn.ngeom = 0
+            self._viewer.sync()
+        return self.show_lidar
+
+    def render(self, camera_mode=None, track_drone_id=0):
+        if self.render_mode == "human":
+            if self._viewer is None:
+                self._viewer = mujoco.viewer.launch_passive(self.model, self.data)
+            if getattr(self, "show_lidar", True):
+                self._draw_lidar_rays()
+            else:
+                if hasattr(self._viewer, "user_scn"):
+                    self._viewer.user_scn.ngeom = 0
+            self._viewer.sync()
+        else:
+            return super().render(camera_mode=camera_mode, track_drone_id=track_drone_id)

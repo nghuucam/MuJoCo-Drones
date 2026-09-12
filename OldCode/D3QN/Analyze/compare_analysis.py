@@ -11,17 +11,14 @@ def load_and_preprocess(csv_path):
     
     df = pd.read_csv(csv_path)
     
-    # Chuẩn hóa tên cột episode (Eposide / Episode)
     episode_col = 'Episode' if 'Episode' in df.columns else 'Eposide'
     if episode_col not in df.columns:
         return None
         
     df[episode_col] = pd.to_numeric(df[episode_col], errors='coerce')
     
-    # Lấy thông tin bản ghi cuối cùng của từng Episode
     episodes = df.groupby(episode_col).last().reset_index()
     
-    # Chuẩn hóa các cột boolean/binary (1/0 hoặc "1"/"0")
     for col in ['Win', 'Collision', 'Over_Step', 'Over_Map']:
         if col in episodes.columns:
             episodes[col] = episodes[col].astype(str).str.strip().isin(['1', 'True', '1.0'])
@@ -72,11 +69,9 @@ def compare_two_logs(file1, name1, file2, name2, window_size=50):
     print(f"{'Điểm trung bình (Avg Reward)':<30} | {r1:>15.2f} | {r2:>15.2f}")
     print("=" * 65)
 
-    # Vẽ biểu đồ so sánh trực quan
     fig, axes = plt.subplots(2, 2, figsize=(16, 10))
     fig.suptitle(f'So sánh Kết quả Huấn luyện: {name1} vs {name2}', fontsize=16, fontweight='bold')
 
-    # 1. Biểu đồ Điểm thưởng (Accumulated Reward) Trung bình trượt
     ax1 = axes[0, 0]
     if res1 is not None:
         ep1, col1 = res1
@@ -96,7 +91,6 @@ def compare_two_logs(file1, name1, file2, name2, window_size=50):
     ax1.grid(True, linestyle='--', alpha=0.6)
     ax1.legend()
 
-    # 2. Biểu đồ Tỷ lệ thắng trượt (Moving Win Rate %)
     ax2 = axes[0, 1]
     if res1 is not None:
         ep1, col1 = res1
@@ -115,7 +109,6 @@ def compare_two_logs(file1, name1, file2, name2, window_size=50):
     ax2.grid(True, linestyle='--', alpha=0.6)
     ax2.legend()
 
-    # 3. Biểu đồ Cột so sánh tỷ lệ kết quả tổng quan
     ax3 = axes[1, 0]
     categories = ['Thắng (Win)', 'Va chạm', 'Hết bước', 'Ra ngoài map']
     vals1 = [w1, c1, os1, om1]
@@ -134,7 +127,6 @@ def compare_two_logs(file1, name1, file2, name2, window_size=50):
     ax3.grid(axis='y', linestyle='--', alpha=0.6)
     ax3.legend()
 
-    # 4. Biểu đồ So sánh Loss (nếu có file log loss)
     ax4 = axes[1, 1]
     loss_file1 = file1.replace("drone_flight_log", "log_loss")
     loss_file2 = file2.replace("drone_flight_log", "log_loss")
@@ -171,7 +163,6 @@ def compare_two_logs(file1, name1, file2, name2, window_size=50):
     plt.savefig(chart_path, dpi=300)
     print(f"\n🖼️  Đã lưu biểu đồ so sánh vào: {chart_path}")
     
-    # Hiển thị cửa sổ trực quan nếu chạy trên môi trường có GUI
     try:
         plt.show()
     except Exception:
