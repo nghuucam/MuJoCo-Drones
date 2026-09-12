@@ -335,8 +335,6 @@ def main():
                     if eposide % 100 == 0 or eposide >= max_eposide:
                         save_path = os.path.join(current_dir, "Model", f"drone_model_d3qn_eposide{eposide}.pth")
                         d3qn_agent.save(save_path)
-                        buffer_path = os.path.join(current_dir, "Model", f"replay_buffer_d3qn_eposide{eposide}.pkl")
-                        d3qn_agent.save_buffer(buffer_path)
 
                     if eposide >= max_eposide:
                         end_time = time.perf_counter()

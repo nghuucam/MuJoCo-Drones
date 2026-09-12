@@ -35,15 +35,15 @@ def get_action_hints(obs, env_goal, direct, sensors=None):
 
     if sensors is not None:
         d = np.array(sensors, dtype=np.float32) * 5.0
-        if min(d[3], d[4], d[5]) < 1.8:
+        if d[4] < 1.2:
             hints[0] = -0.4
-        if min(d[7], d[8]) < 1.3:
+        if min(d[7], d[8]) < 0.9:
             hints[1] = -0.4
-        if min(d[0], d[1]) < 1.3:
+        if min(d[0], d[1]) < 0.9:
             hints[2] = -0.4
-        if min(d[2], d[3]) < 1.5:
+        if min(d[2], d[3]) < 1.1:
             hints[3] = -0.4
-        if min(d[5], d[6]) < 1.5:
+        if min(d[5], d[6]) < 1.1:
             hints[4] = -0.4
 
     return hints
@@ -232,15 +232,22 @@ def main():
     model = DroneNet(n_actions=5, state_vector_dim=23)
     dqn_agent = DQN(model, n_actions=5)
 
-    max_eposide0 = 200
-    max_eposide = 400
-    max_epsilon = 1.0
-    min_epsilon = 0.1
+    pretrained_model = os.path.join(parent_dir, "Parallel", "Model", "drone_model_parallel_dqn_eposide400.pth")
+    if os.path.exists(pretrained_model):
+        dqn_agent.load(pretrained_model)
+        print(f"✅ [Fine-tuning] Đã nạp thành công Model Pretrained: {pretrained_model}")
+    else:
+        print(f"⚠️ Không tìm thấy file {pretrained_model}, huấn luyện từ đầu!")
+
+    max_eposide0 = 80
+    max_eposide = 100
+    max_epsilon = 0.25
+    min_epsilon = 0.05
     reduce_epsilon = (max_epsilon - min_epsilon) / max_eposide0
     MAX_ACTIONS = 70
 
-    log_file = os.path.join(current_dir, "drone_flight_log_parallel_DQN.csv")
-    log_loss_file = os.path.join(current_dir, "log_loss_parallel_DQN.csv")
+    log_file = os.path.join(current_dir, "drone_flight_log_optimize_DQN.csv")
+    log_loss_file = os.path.join(current_dir, "log_loss_optimize_DQN.csv")
     
     if not os.path.exists(log_file):
         with open(log_file, mode='w', newline='', encoding='utf-8') as f:
@@ -422,7 +429,7 @@ def main():
                     states_info[i]['sensors'] = sensors_next
 
             if total_episodes > 0 and total_episodes % 50 == 0:
-                save_path = os.path.join(current_dir, "Model", f"drone_model_parallel_dqn_eposide{total_episodes}.pth")
+                save_path = os.path.join(current_dir, "Model", f"drone_model_optimize_dqn_eposide{total_episodes}.pth")
                 dqn_agent.save(save_path)
 
         except Exception as e:
@@ -431,7 +438,10 @@ def main():
             break
 
     end_time = time.perf_counter()
-    print(f"\n✅ HOÀN THÀNH HUẤN LUYỆN SONG SONG DQN! TỔNG THỜI GIAN: {end_time - start_time:.2f} GIÂY")
+    print(f"✅ HOÀN THÀNH HUẤN LUYỆN SONG SONG! TỔNG THỜI GIAN: {end_time - start_time:.2f} GIÂY")
+    final_model_path = os.path.join(current_dir, "Model", f"drone_model_optimize_dqn_final.pth")
+    dqn_agent.save(final_model_path)
+    print(f"💾 Đã lưu model tối ưu cuối cùng vào: {final_model_path}")
 
     for i in range(NUM_ENVS):
         try:

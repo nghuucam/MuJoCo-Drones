@@ -18,7 +18,7 @@ for path in [current_dir, parent_dir, root_dir]:
 from multi_drone_mujoco.utils.enums import DroneModel
 from multi_drone_mujoco.control.dsl_pid_control import DSLPIDControl
 from mujoco_env import DroneEnv 
-from agent import DQN, DroneNet
+from agent import D3QN, DroneNet
 
 def get_action_hints(obs, env_goal, direct, sensors=None):
     goal_pos = env_goal[0] if hasattr(env_goal, "__len__") and len(env_goal) > 0 and isinstance(env_goal[0], (list, np.ndarray)) else env_goal
@@ -35,15 +35,15 @@ def get_action_hints(obs, env_goal, direct, sensors=None):
 
     if sensors is not None:
         d = np.array(sensors, dtype=np.float32) * 5.0
-        if min(d[3], d[4], d[5]) < 1.8:
+        if d[4] < 1.2:
             hints[0] = -0.4
-        if min(d[7], d[8]) < 1.3:
+        if min(d[7], d[8]) < 0.9:
             hints[1] = -0.4
-        if min(d[0], d[1]) < 1.3:
+        if min(d[0], d[1]) < 0.9:
             hints[2] = -0.4
-        if min(d[2], d[3]) < 1.5:
+        if min(d[2], d[3]) < 1.1:
             hints[3] = -0.4
-        if min(d[5], d[6]) < 1.5:
+        if min(d[5], d[6]) < 1.1:
             hints[4] = -0.4
 
     return hints
@@ -72,7 +72,7 @@ def get_img_state(rgb_img):
     return np.expand_dims(img, axis=0)
 
 def worker_loop(remote, worker_id):
-    """Tiến trình con chạy độc lập 1 môi trường DroneEnv trong MuJoCo cho DQN."""
+    """Tiến trình con chạy độc lập 1 môi trường DroneEnv trong MuJoCo."""
     try:
         env = DroneEnv(gui=False)
         control = DSLPIDControl(env=env)
@@ -214,7 +214,7 @@ def worker_loop(remote, worker_id):
 
 def main():
     NUM_ENVS = 4
-    print(f"🚀 Bắt đầu Huấn luyện Song song DQN với {NUM_ENVS} môi trường MuJoCo...")
+    print(f"🚀 Bắt đầu Huấn luyện Song song với {NUM_ENVS} môi trường MuJoCo...")
     
     os.makedirs(os.path.join(current_dir, "Model"), exist_ok=True)
     
@@ -230,17 +230,24 @@ def main():
         workers.append((proc, parent_conn))
 
     model = DroneNet(n_actions=5, state_vector_dim=23)
-    dqn_agent = DQN(model, n_actions=5)
+    d3qn_agent = D3QN(model, n_actions=5)
 
-    max_eposide0 = 200
-    max_eposide = 400
-    max_epsilon = 1.0
-    min_epsilon = 0.1
+    pretrained_model = os.path.join(parent_dir, "Parallel", "Model", "drone_model_parallel_eposide400.pth")
+    if os.path.exists(pretrained_model):
+        d3qn_agent.load(pretrained_model)
+        print(f"✅ [Fine-tuning] Đã nạp thành công Model Pretrained: {pretrained_model}")
+    else:
+        print(f"⚠️ Không tìm thấy file {pretrained_model}, huấn luyện từ đầu!")
+
+    max_eposide0 = 80
+    max_eposide = 100
+    max_epsilon = 0.25
+    min_epsilon = 0.05
     reduce_epsilon = (max_epsilon - min_epsilon) / max_eposide0
     MAX_ACTIONS = 70
 
-    log_file = os.path.join(current_dir, "drone_flight_log_parallel_DQN.csv")
-    log_loss_file = os.path.join(current_dir, "log_loss_parallel_DQN.csv")
+    log_file = os.path.join(current_dir, "drone_flight_log_optimize_D3QN.csv")
+    log_loss_file = os.path.join(current_dir, "log_loss_optimize_D3QN.csv")
     
     if not os.path.exists(log_file):
         with open(log_file, mode='w', newline='', encoding='utf-8') as f:
@@ -317,9 +324,9 @@ def main():
                 s_imgs.append(s_img)
                 s_vecs.append(s_vec)
 
-                _, action_idx = dqn_agent.get_action(s_img, s_vec, max_epsilon)
+                _, action_idx = d3qn_agent.get_action(s_img, s_vec, max_epsilon)
                 actions.append(action_idx)
-                
+
                 target_pos = direct[action_idx]
                 workers[i][1].send(("step_action", target_pos))
 
@@ -364,9 +371,9 @@ def main():
                 ns_img = get_img_state(rgb_next)
                 ns_vec = get_vec_state(next_obs, goal, hints1, sensors_next)
 
-                dqn_agent.store_transition(s_imgs[i], s_vecs[i], actions[i], reward, ns_img, ns_vec, done)
+                d3qn_agent.store_transition(s_imgs[i], s_vecs[i], actions[i], reward, ns_img, ns_vec, done)
                 
-                loss = dqn_agent.learn()
+                loss = d3qn_agent.learn()
                 if loss > 0:
                     episodes_losses.append(loss)
 
@@ -390,7 +397,7 @@ def main():
                     if max_epsilon > min_epsilon:
                         max_epsilon -= reduce_epsilon
 
-                    print(f"🏆 EPISODE {total_episodes}/{max_eposide} [Worker {i}] Hoàn thành (DQN) | Win: {WIN} | Collision: {COLLISION} | Reward: {states_info[i]['accum_reward']:.2f}")
+                    print(f"🏆 EPISODE {total_episodes}/{max_eposide} [Worker {i}] Hoàn thành | Win: {WIN} | Collision: {COLLISION} | Reward: {states_info[i]['accum_reward']:.2f}")
 
                     workers[i][1].send(("reset", "reset"))
                     status_r, payload_r = workers[i][1].recv()
@@ -405,13 +412,14 @@ def main():
                         print(f"❌ Lỗi Go_Up Worker {i}: {payload_up}")
                         return
                     obs_up, rgb_up, sensors_up, start_r, goal_r = payload_up
+                    obs_up, rgb_up, sensors_up, start_up, goal_up = payload_up
                     
                     states_info[i] = {
                         'obs': obs_up,
                         'rgb': rgb_up,
                         'sensors': sensors_up,
-                        'start': start_r,
-                        'goal': goal_r,
+                        'start': start_up,
+                        'goal': goal_up,
                         'action_count': 0,
                         'accum_reward': 0.0,
                         'last_action': None
@@ -422,8 +430,8 @@ def main():
                     states_info[i]['sensors'] = sensors_next
 
             if total_episodes > 0 and total_episodes % 50 == 0:
-                save_path = os.path.join(current_dir, "Model", f"drone_model_parallel_dqn_eposide{total_episodes}.pth")
-                dqn_agent.save(save_path)
+                save_path = os.path.join(current_dir, "Model", f"drone_model_optimize_d3qn_eposide{total_episodes}.pth")
+                d3qn_agent.save(save_path)
 
         except Exception as e:
             print(f"💥 Lỗi luồng chính: {e}")
@@ -431,7 +439,10 @@ def main():
             break
 
     end_time = time.perf_counter()
-    print(f"\n✅ HOÀN THÀNH HUẤN LUYỆN SONG SONG DQN! TỔNG THỜI GIAN: {end_time - start_time:.2f} GIÂY")
+    print(f"✅ HOÀN THÀNH HUẤN LUYỆN SONG SONG! TỔNG THỜI GIAN: {end_time - start_time:.2f} GIÂY")
+    final_model_path = os.path.join(current_dir, "Model", f"drone_model_optimize_d3qn_final.pth")
+    d3qn_agent.save(final_model_path)
+    print(f"💾 Đã lưu model tối ưu cuối cùng vào: {final_model_path}")
 
     for i in range(NUM_ENVS):
         try:

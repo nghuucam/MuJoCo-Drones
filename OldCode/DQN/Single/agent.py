@@ -170,16 +170,3 @@ class DQN():
         self.model.load_state_dict(torch.load(filename, map_location=self.device))
         self.target_model.load_state_dict(self.model.state_dict())
         print(f"--- Đã tải Model DQN từ {filename} ---")
-
-    def save_buffer(self, filename):
-        import pickle
-        with open(filename, 'wb') as f:
-            pickle.dump(list(self.memory), f)
-        print(f"💾 Đã lưu ReplayBuffer ({len(self.memory)} mẫu) vào {filename}")
-
-    def load_buffer(self, filename):
-        import pickle
-        with open(filename, 'rb') as f:
-            data = pickle.load(f)
-            self.memory.extend(data)
-        print(f"📂 Đã nạp {len(data)} mẫu vào ReplayBuffer từ {filename}")

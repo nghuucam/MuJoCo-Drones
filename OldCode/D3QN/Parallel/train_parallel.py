@@ -425,8 +425,6 @@ def main():
             if total_episodes > 0 and total_episodes % 50 == 0:
                 save_path = os.path.join(current_dir, "Model", f"drone_model_parallel_eposide{total_episodes}.pth")
                 d3qn_agent.save(save_path)
-                buffer_path = os.path.join(current_dir, "Model", f"replay_buffer_parallel_eposide{total_episodes}.pkl")
-                d3qn_agent.save_buffer(buffer_path)
 
         except Exception as e:
             print(f"💥 Lỗi luồng chính: {e}")
