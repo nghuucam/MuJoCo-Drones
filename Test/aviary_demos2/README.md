@@ -1,28 +1,28 @@
-# Hướng dẫn Kiểm tra Môi trường Chướng ngại vật (Obstacles) trong MuJoCo-Drones
+# Procedural Obstacle Environments Guide in MuJoCo-Drones
 
-Thư mục `aviary_demos2` chứa toàn bộ mã nguồn kiểm tra, trực quan hóa 3D và kết xuất ảnh động GIF cho hệ thống **Sinh chướng ngại vật ngẫu nhiên theo thủ tục (Procedural Obstacle Generation)** với 5 chủ đề chuyên biệt:
+This folder contains the complete test scripts, 3D visualizations, and GIF export utilities for the **Procedural Obstacle Generation** system with 5 distinct environment themes:
 
-1. **`FOREST`** (Rừng cây: Thân gỗ trụ + Tán lá xanh hình cầu)
-2. **`URBAN`** (Đô thị / Hẻm nhà cao tầng: Các khối nhà hộp bê tông và đèn cảnh báo nóc)
-3. **`INDOOR`** (Trong nhà / Phòng kín: 4 bức tường xung quanh, trần nhà, bàn ghế, cột trụ)
-4. **`RANDOM`** (Ngẫu nhiên hỗn hợp: Khối cầu, trụ, hộp xoay tự do và kích thước đa dạng)
-5. **`GATES`** (Cổng đua liên hoàn: Chuỗi khung cổng FPV với vùng tâm portal phát sáng)
+1. **`FOREST`** (Woodland: Cylindrical tree trunks + Spherical foliage crowns)
+2. **`URBAN`** (Metropolitan Canyon: Concrete buildings and red warning beacons)
+3. **`INDOOR`** (Enclosed Room: 4 boundary walls, ceiling, tables, and pillars)
+4. **`RANDOM`** (Cluttered Benchmark: Randomly oriented spheres, cylinders, and boxes)
+5. **`GATES`** (FPV Slalom Course: Sequential racing gates with portal indicators)
 
 ---
 
-## 1. Cấu trúc thư mục
+## 1. Directory Structure
 
 ```
 c:\KLTN\MuJoCo-Drones\Test\aviary_demos2\
-├── controller_utils2.py          # Tiện ích: chuyển đổi RPM sang Action [-1, 1], CLI, xuất GIF
-├── 01_test_obstacle_forest.py    # Test chủ đề FOREST (Rừng cây)
-├── 02_test_obstacle_urban.py     # Test chủ đề URBAN (Đô thị)
-├── 03_test_obstacle_indoor.py    # Test chủ đề INDOOR (Trong nhà / Phòng kín)
-├── 04_test_obstacle_random.py    # Test chủ đề RANDOM (Ngẫu nhiên hỗn hợp)
-├── 05_test_obstacle_gates.py     # Test chủ đề GATES (Cổng đua liên hoàn)
-├── run_all_obstacles.py          # Script tổng hợp chạy cả 5 hoặc từng chủ đề
-├── README.md                     # Tài liệu hướng dẫn chi tiết
-└── gifs/                         # Thư mục lưu các tệp ảnh động GIF của từng chủ đề
+├── controller_utils2.py
+├── 01_test_obstacle_forest.py
+├── 02_test_obstacle_urban.py
+├── 03_test_obstacle_indoor.py
+├── 04_test_obstacle_random.py
+├── 05_test_obstacle_gates.py
+├── run_all_obstacles.py
+├── README.md
+└── gifs/
     ├── obstacle_forest.gif
     ├── obstacle_urban.gif
     ├── obstacle_indoor.gif
@@ -32,45 +32,36 @@ c:\KLTN\MuJoCo-Drones\Test\aviary_demos2\
 
 ---
 
-## 2. Đặc điểm kỹ thuật của 5 chủ đề
+## 2. Technical Specifications of Obstacle Themes
 
-| Chủ đề | Hình học chính | Màu sắc & Vật liệu | Đặc điểm địa hình & Thử thách |
+| Theme | Core Geometries | Materials & Colors | Spatial Characteristics & Challenge |
 | :--- | :--- | :--- | :--- |
-| **`FOREST`** | Thân cây `cylinder`, Tán lá `sphere` | Thân nâu gỗ, tán lá xanh tự nhiên | Mật độ dày đặc, thử thách bay luồn lách giữa các thân cây và dưới tán lá. |
-| **`URBAN`** | Tòa nhà `box`, Đèn nóc `sphere` | Xám bê tông, đá, kính, đèn đỏ nóc | Các khe hẹp đô thị (Urban Canyon), bề mặt phẳng dựng đứng, đường phố ngã tư. |
-| **`INDOOR`** | 4 Tường `box`, Trần `box`, Bàn, Cột | Tường trắng ngà, gỗ nâu, cột xám | Không gian kín có trần hạn chế độ cao tối đa, hiệu ứng dội luồng khí cánh quạt. |
-| **`RANDOM`** | Hỗn hợp `box`, `cylinder`, `sphere` | Đa sắc ngẫu nhiên, xoay góc Euler | Môi trường bừa bộn không theo quy luật, kiểm thử độ khái quát hóa của mô hình RL. |
-| **`GATES`** | 2 Cột trụ `box/cylinder`, Xà ngang, Portal | Cam neon, vàng phản quang, tâm xanh ngọc | Chuỗi cổng hẹp nối tiếp nhau, kiểm tra kỹ năng bay chính xác qua tâm cửa sổ. |
+| **`FOREST`** | Trunk `cylinder`, Crown `sphere` | Bark brown, natural green canopy | Dense spacing, canopy downwash, agility through tree trunks. |
+| **`URBAN`** | Building `box`, Beacon `sphere` | Concrete gray, stone, glass, red beacon | Urban canyons, sheer vertical surfaces, street intersections. |
+| **`INDOOR`** | 4 Walls `box`, Ceiling `box`, Pillars | Ivory walls, brown wood, gray pillars | Enclosed volume with ceiling altitude constraint and ground effect. |
+| **`RANDOM`** | Mixed `box`, `cylinder`, `sphere` | Multi-color palette, random Euler angles | Unstructured clutter evaluating RL policy generalization. |
+| **`GATES`** | 2 Posts `box/cylinder`, Crossbar, Portal | Neon orange, reflective yellow, cyan center | Sequential narrow apertures testing precision flight. |
 
 ---
 
-## 3. Hướng dẫn chạy thử nghiệm
+## 3. Running Demonstrations
 
-Mở terminal và di chuyển vào thư mục:
+Navigate to the test directory:
 ```powershell
 cd C:\KLTN\MuJoCo-Drones\Test\aviary_demos2
 ```
 
-### Chế độ xem trực tiếp 3D MuJoCo Viewer (`--gui`)
+### Interactive 3D Viewer (`--gui`)
 
 ```powershell
-# 1. Xem rừng cây FOREST
 python 01_test_obstacle_forest.py --gui
-
-# 2. Xem đô thị URBAN
 python 02_test_obstacle_urban.py --gui
-
-# 3. Xem phòng kín INDOOR
 python 03_test_obstacle_indoor.py --gui
-
-# 4. Xem vật cản ngẫu nhiên RANDOM
 python 04_test_obstacle_random.py --gui
-
-# 5. Xem chuỗi cổng đua GATES
 python 05_test_obstacle_gates.py --gui
 ```
 
-### Chế độ ghi hình GIF tự động (`--record`)
+### Record Animated GIFs (`--record`)
 
 ```powershell
 python 01_test_obstacle_forest.py --record
@@ -80,20 +71,15 @@ python 04_test_obstacle_random.py --record
 python 05_test_obstacle_gates.py --record
 ```
 
-### Chạy tổng hợp qua `run_all_obstacles.py`
+### Run All Themes via `run_all_obstacles.py`
 
 ```powershell
-# Chạy kiểm tra console nhanh cho cả 5 chủ đề
 python run_all_obstacles.py
-
-# Xuất lại toàn bộ GIF cho cả 5 chủ đề
 python run_all_obstacles.py --record
-
-# Chạy một chủ đề bất kỳ với GUI
 python run_all_obstacles.py --theme forest --gui
 ```
 
-### Tùy chỉnh tham số mô phỏng
-- `--num-obstacles <N>`: Thay đổi số lượng vật cản sinh ra (ví dụ: `--num-obstacles 40` để tạo rừng cây rậm rạp).
-- `--seed <S>`: Đổi seed ngẫu nhiên để sinh ra các bản đồ địa hình mới lạ hoàn toàn khác nhau.
-- `--steps <K>`: Số bước chạy mô phỏng.
+### Configuration Options
+- `--num-obstacles <N>`: Adjust obstacle count (e.g. `--num-obstacles 40`).
+- `--seed <S>`: Change random seed for procedural map generation.
+- `--steps <K>`: Total simulation steps.

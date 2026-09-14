@@ -22,8 +22,8 @@ High-fidelity quadcopter simulation with GPU-vectorized environments, Dryden win
 ```bash
 git clone <this-repo>
 cd multi_drone_mujoco/
-pip install -e .          # core
-pip install -e ".[all]"   # with RL, MARL, and visualization extras
+pip install -e .
+pip install -e ".[all]"
 ```
 
 ### Requirements
@@ -85,10 +85,10 @@ obs, rewards, terms, truncs, infos = env.step(actions)
 
 ```bash
 cd multi_drone_mujoco/examples/
-python pid.py          # PID hover + velocity tracking + multi-drone
-python downwash.py     # downwash effect demonstration
-python learn.py        # SB3 PPO training (single + multi hover)
-python play.py         # visualize trained policy
+python pid.py
+python downwash.py
+python learn.py
+python play.py
 ```
 
 ## Environments
@@ -125,29 +125,29 @@ pytest multi_drone_mujoco/tests/ -v
 ```
 multi_drone_mujoco/
 ├── envs/
-│   ├── base_aviary.py          # Core physics engine + Gymnasium env
-│   ├── hover_aviary.py         # Single-drone hover task
-│   ├── velocity_aviary.py      # Velocity tracking task
-│   ├── multi_hover_aviary.py   # Multi-drone hover
-│   ├── fly_through_aviary.py   # Waypoint navigation
-│   ├── formation_aviary.py     # Formation flying
-│   ├── race_aviary.py          # Gate racing
-│   └── multi_agent_aviary.py   # PettingZoo wrapper
+│   ├── base_aviary.py
+│   ├── hover_aviary.py
+│   ├── velocity_aviary.py
+│   ├── multi_hover_aviary.py
+│   ├── fly_through_aviary.py
+│   ├── formation_aviary.py
+│   ├── race_aviary.py
+│   └── multi_agent_aviary.py
 ├── control/
-│   ├── pid_control.py          # Cascaded PID controller
-│   └── dsl_pid_control.py      # Enhanced PID with anti-windup
+│   ├── pid_control.py
+│   └── dsl_pid_control.py
 ├── utils/
-│   ├── enums.py                # DroneModel, Physics, ActionType, etc.
-│   └── logger.py               # CSV logging + matplotlib plotting
+│   ├── enums.py
+│   └── logger.py
 ├── examples/
-│   ├── pid.py                  # PID control demos
-│   ├── downwash.py             # Downwash visualization
-│   ├── learn.py                # SB3 PPO training
-│   └── play.py                 # Trained model playback
+│   ├── pid.py
+│   ├── downwash.py
+│   ├── learn.py
+│   └── play.py
 ├── tests/
-│   ├── test_envs.py            # Environment tests
-│   ├── test_control.py         # Controller tests
-│   └── test_multi_agent.py     # MARL tests
+│   ├── test_envs.py
+│   ├── test_control.py
+│   └── test_multi_agent.py
 └── setup.py
 ```
 
