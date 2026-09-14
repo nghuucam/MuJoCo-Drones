@@ -28,7 +28,7 @@ WIND_MAP = {
     "dryden": ("03_test_wind_dryden", "run_dryden_wind_demo", "Mô hình nhiễu loạn khí quyển (DRYDEN)"),
     "sinusoidal": ("04_test_wind_sinusoidal", "run_sinusoidal_wind_demo", "Mô hình gió điều hòa hình sin (SINUSOIDAL)"),
     "combined": ("05_test_wind_combined", "run_combined_wind_demo", "Mô hình gió bão kết hợp cực hạn (COMBINED)"),
-    "visible": ("07_test_wind_drift_visible", "run_visible_wind_demo", "Minh chứng trực quan lực gió & độ trôi dạt (VISIBLE)"),
+    "visible": ("07_test_wind_drift_visible", "run_visible_drift_demo", "Minh chứng trực quan lực gió & độ trôi dạt (VISIBLE)"),
     "swirls": ("08_test_wind_swirls_icon", "run_swirls_demo", "Trực quan hóa luồng gió xoáy 3D (WIND SWIRLS ICON)"),
 }
 

@@ -106,6 +106,7 @@ def _generate_aviary_xml(
     obstacles: bool = False,
     vision: bool = False,
     timestep: float = 1 / 240,
+    custom_xml: str = "",
 ) -> str:
     """Generate MuJoCo XML for the aviary with N drones."""
     meshdir = str(CF2_MESH_DIR)
@@ -254,6 +255,7 @@ def _generate_aviary_xml(
     <light pos="0 0 3" dir="0 0 -1" directional="true" castshadow="false"/>
     <geom name="floor" size="10 10 0.05" type="plane" material="groundplane" contype="1" conaffinity="1"/>
 {drone_bodies}{obstacle_bodies}
+{custom_xml}
   </worldbody>
 
   <sensor>
@@ -299,6 +301,7 @@ class BaseAviary(gym.Env):
         act_type: ActionType = ActionType.RPM,
         output_folder: str = "results",
         render_mode: Optional[str] = None,
+        custom_xml: str = "",
     ):
         """Initialize the aviary.
 
@@ -425,6 +428,7 @@ class BaseAviary(gym.Env):
             obstacles=obstacles,
             vision=vision_attributes,
             timestep=self.SIM_TIMESTEP,
+            custom_xml=custom_xml,
         )
         self.model = mujoco.MjModel.from_xml_string(xml_str)
         self.data = mujoco.MjData(self.model)

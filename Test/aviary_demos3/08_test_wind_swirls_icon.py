@@ -79,7 +79,10 @@ def run_swirls_demo(gui: bool = False, record: bool = False, steps: int = 300, w
 
         if gui:
             base_env.render()
-            time.sleep(base_env.CTRL_TIMESTEP)
+            time.sleep(max(0.0, base_env.CTRL_TIMESTEP))
+            if hasattr(base_env, "_viewer") and base_env._viewer is not None and not base_env._viewer.is_running():
+                print("\n[!] Cửa sổ xem 3D MuJoCo đã được người dùng đóng.")
+                break
 
         if record and step % 2 == 0:
             frame = base_env.render(camera_mode="fixed")

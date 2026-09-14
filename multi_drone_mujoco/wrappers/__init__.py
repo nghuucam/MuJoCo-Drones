@@ -193,3 +193,28 @@ class DomainRandomizationWrapper(gym.Wrapper):
             "motor_tau": self._motor_tau,
             "gyro_bias": self._gyro_bias.tolist(),
         }
+
+
+# Export wind & obstacle modules for convenient imports
+from multi_drone_mujoco.wrappers.wind import WindField, WindConfig, WindModel
+from multi_drone_mujoco.wrappers.wind_wrapper import WindWrapper
+from multi_drone_mujoco.wrappers.obstacles import (
+    ObstacleConfig,
+    ObstacleType,
+    generate_obstacles,
+    obstacles_to_xml,
+)
+
+__all__ = [
+    "DomainRandomizationConfig",
+    "DomainRandomizationWrapper",
+    "WindField",
+    "WindConfig",
+    "WindModel",
+    "WindWrapper",
+    "ObstacleConfig",
+    "ObstacleType",
+    "generate_obstacles",
+    "obstacles_to_xml",
+]
+

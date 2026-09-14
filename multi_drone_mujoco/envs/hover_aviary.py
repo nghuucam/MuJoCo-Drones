@@ -27,6 +27,7 @@ class HoverAviary(BaseAviary):
         target_height: float = 1.0,
         initial_xyzs=None,
         render_mode=None,
+        custom_xml: str = "",
     ):
         self.TARGET_HEIGHT = target_height
         self.EPISODE_LEN_SEC = 10
@@ -46,6 +47,7 @@ class HoverAviary(BaseAviary):
             act_type=ActionType.RPM,
             initial_xyzs=initial_xyzs,
             render_mode=render_mode,
+            custom_xml=custom_xml,
         )
 
     def _actionSpace(self):
