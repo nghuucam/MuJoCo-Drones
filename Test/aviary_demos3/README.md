@@ -37,13 +37,13 @@ c:\KLTN\MuJoCo-Drones\Test\aviary_demos3\
 
 `WindWrapper` computes aerodynamic drag and relative air velocity forces applied to each drone body at every physics sub-step:
 
-$$\mathbf{F}_{\text{wind}} = \frac{1}{2} \rho \, (C_d \cdot A) \, \|\mathbf{v}_{\text{rel}}\| \, \mathbf{v}_{\text{rel}}$$
+$$F_{\text{wind}} = \frac{1}{2} \rho (C_d \cdot A) \|v_{\text{rel}}\| v_{\text{rel}}$$
 
 Where:
-- $\rho = 1.225 \text{ kg/m}^3$: Air density.
-- $\mathbf{v}_{\text{rel}} = \mathbf{w}_{\text{wind}} - \mathbf{v}_{\text{drone}}$: Relative velocity between ambient wind field and drone.
-- $C_d \cdot A$: Effective cross-sectional aerodynamic drag area.
-- $\mathbf{F}_{\text{wind}}$ is integrated at 240Hz sub-steps inside `BaseAviary._physics` via MuJoCo external force buffer `data.xfrc_applied`.
+- `ρ = 1.225 kg/m³`: Air density.
+- `v_rel = w_wind - v_drone`: Relative velocity vector between ambient wind field and drone.
+- `C_d · A`: Effective cross-sectional aerodynamic drag area.
+- `F_wind`: Aerodynamic wind force integrated at 240Hz sub-steps inside `BaseAviary._physics` via MuJoCo external force buffer `data.xfrc_applied`.
 
 ---
 
@@ -54,7 +54,7 @@ Where:
 | **`CONSTANT`** | `constant_wind=[wx, wy, wz]` | Continuous steady wind. Drone maintains constant tilt angle (Pitch/Roll) to counter drift. |
 | **`GUST`** | `gust_intensity`, `gust_probability`, `gust_duration_steps` | Stochastic discrete wind impulses. Tests controller recovery and disturbance rejection. |
 | **`DRYDEN`** | `turbulence_intensity`, `altitude`, `airspeed` | Military aviation standard (MIL-F-8785C). Continuous multi-axis frequency-shaped turbulence. |
-| **`SINUSOIDAL`** | `sinusoidal_amplitude`, `sinusoidal_period` | Harmonic oscillatory wind $F(t) = A \sin(2\pi t / T)$. Drone sways periodically. |
+| **`SINUSOIDAL`** | `sinusoidal_amplitude`, `sinusoidal_period` | Harmonic oscillatory wind `F(t) = A · sin(2πt / T)`. Drone sways periodically. |
 | **`COMBINED`** | Superposition of all components | Extreme weather benchmark: Steady wind + Dryden turbulence + Stochastic gusts. |
 
 ---
