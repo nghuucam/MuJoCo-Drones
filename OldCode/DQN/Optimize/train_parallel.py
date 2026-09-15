@@ -74,7 +74,7 @@ def get_img_state(rgb_img):
 def worker_loop(remote, worker_id):
     """Tiến trình con chạy độc lập 1 môi trường DroneEnv trong MuJoCo cho DQN."""
     try:
-        env = DroneEnv(gui=False)
+        env = DroneEnv(gui=False, show_lidar=False)
         control = DSLPIDControl(env=env)
     except Exception as e:
         try:

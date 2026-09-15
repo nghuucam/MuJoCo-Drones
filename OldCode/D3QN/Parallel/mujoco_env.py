@@ -74,7 +74,7 @@ def _generate_drone_nav_xml(num_drones, drone_model, init_xyzs, init_rpys, obsta
 {prop_sites}"""
 
         if vision:
-            drone_bodies += f'      <camera name="{prefix}_cam" pos="0.02 0 0" xyaxes="0 -1 0 0 0 1" fovy="60"/>\n'
+            drone_bodies += f'      <camera name="{prefix}_cam" pos="0 -0.03 0" xyaxes="-1 0 0 0 0 1" fovy="60"/>\n'
         drone_bodies += "    </body>\n"
 
         sensors += f"""

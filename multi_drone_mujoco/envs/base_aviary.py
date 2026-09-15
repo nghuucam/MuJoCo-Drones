@@ -189,7 +189,7 @@ def _generate_aviary_xml(
 
         # Add camera for vision
         if vision:
-            drone_bodies += f'      <camera name="{prefix}_cam" pos="0.02 0 0" xyaxes="0 -1 0 0 0 1" fovy="60"/>\n'
+            drone_bodies += f'      <camera name="{prefix}_cam" pos="0 -0.03 0" xyaxes="-1 0 0 0 0 1" fovy="60"/>\n'
 
         drone_bodies += "    </body>\n"
 

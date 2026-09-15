@@ -111,7 +111,15 @@ def go_up(obs, control, env):
         if isinstance(obs_ret, tuple):
             obs_ret = obs_ret[0]
 
+        if step_count % 2 == 0:
+            live_sensors = env.get_raycast_sensors()
+            sys.stdout.write(f"\r{format_lidar_str(live_sensors)}    ")
+            sys.stdout.flush()
+
         if (abs(cur_pos[2] - 1.0) < 0.08 and np.linalg.norm(cur_vel) < 0.20) or (time.time() - start_time > TIMEOUT):
+            live_sensors = env.get_raycast_sensors()
+            sys.stdout.write(f"\r{format_lidar_str(live_sensors)}    \n")
+            sys.stdout.flush()
             print(f"🚀 Đã cất cánh lên độ cao {cur_pos[2]:.2f}m ổn định!")
             break
 
@@ -152,6 +160,11 @@ def move(target_pos, obs, control, env):
         accumulated_reward += reward
         obs = next_obs
         
+        if step % 2 == 0:
+            live_sensors = env.get_raycast_sensors()
+            sys.stdout.write(f"\r{format_lidar_str(live_sensors)}    ")
+            sys.stdout.flush()
+
         dist_to_target = np.linalg.norm(cur_pos[0:2] - target_pos[0:2])
         speed = np.linalg.norm(cur_vel)
         wobble_speed = np.linalg.norm(cur_ang_v)
@@ -162,6 +175,9 @@ def move(target_pos, obs, control, env):
         if terminated or (isinstance(truncated, tuple) and truncated[0]):
             break            
     
+    live_sensors = env.get_raycast_sensors()
+    sys.stdout.write(f"\r{format_lidar_str(live_sensors)}    \n")
+    sys.stdout.flush()
     return obs, img, accumulated_reward, terminated, truncated, info 
 
 def main():
@@ -187,7 +203,7 @@ def main():
             print("❌ Không tìm thấy bất kỳ file model .pth nào! Vui lòng huấn luyện hoặc cung cấp đường dẫn model đúng.")
             return
 
-    env = DroneEnv(gui=True)
+    env = DroneEnv(gui=True, show_lidar=False)
     model = DroneNet(n_actions=5, state_vector_dim=23)
     dqn_agent = DQN(model, n_actions=5)
     

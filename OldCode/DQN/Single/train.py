@@ -188,7 +188,7 @@ def move(target_pos, obs, control, env):
 def main():
     os.makedirs(os.path.join(current_dir, "Model"), exist_ok=True)
 
-    env = DroneEnv(gui=True)
+    env = DroneEnv(gui=True, show_lidar=False)
     model = DroneNet(n_actions=5, state_vector_dim=23)
     dqn_agent = DQN(model, n_actions=5)
     control = DSLPIDControl(env=env)
