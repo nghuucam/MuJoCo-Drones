@@ -28,22 +28,23 @@ from multi_drone_mujoco.control.pid_control import PIDControl
 from controller_utils3 import rpm_to_normalized_action, save_gif, get_windsock_xml, parse_wind_args
 
 
-def run_constant_wind_demo(gui: bool = False, record: bool = False, steps: int = 300, wind_speed: float = 1.5, camera: str = "track"):
+def run_constant_wind_demo(gui: bool = False, record: bool = False, steps: int = 300, wind_speed: float = 3.5, soft_pid: bool = False, camera: str = "track"):
     render_mode = "human" if gui else ("rgb_array" if record else None)
     
     print("=" * 85)
     print(f" KIỂM TRA WINDWRAPPER: MÔ HÌNH GIÓ THỔI LIÊN TỤC (CONSTANT WIND = {wind_speed:.2f} m/s)")
+    print(f" Chế độ điều khiển: {'Compliant PID (bồng bềnh, lung lay)' if soft_pid else 'Stiff PID (kháng gió gồng góc nghiêng)'}")
     print("=" * 85)
     
     wind_vector = np.array([wind_speed, 0.0, 0.0])
     wind_cfg = WindConfig(
         model=WindModel.CONSTANT,
         constant_wind=wind_vector,
-        drag_coefficient=0.001
+        drag_coefficient=0.005
     )
     
     # Tạo môi trường Hover kèm cột cờ gió
-    custom_xml = get_windsock_xml(wind_dir=wind_vector)
+    custom_xml = get_windsock_xml(wind_dir=wind_vector, wind_speed=wind_speed)
     base_env = HoverAviary(
         render_mode=render_mode,
         ctrl_freq=48,
@@ -54,7 +55,7 @@ def run_constant_wind_demo(gui: bool = False, record: bool = False, steps: int =
     
     env = WindWrapper(base_env, wind_config=wind_cfg)
     obs, info = env.reset()
-    ctrl = PIDControl(base_env)
+    ctrl = PIDControl(base_env, mode="compliant" if soft_pid else "stiff")
     
     target_pos = np.array([0.0, 0.0, 1.0])
     
@@ -119,5 +120,6 @@ if __name__ == "__main__":
         record=args.record,
         steps=args.steps,
         wind_speed=args.wind_speed,
+        soft_pid=args.soft_pid,
         camera=args.camera
     )

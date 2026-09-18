@@ -30,11 +30,12 @@ from controller_utils3 import (
 )
 
 
-def run_swirls_demo(gui: bool = False, record: bool = False, steps: int = 300, wind_speed: float = 2.5):
+def run_swirls_demo(gui: bool = False, record: bool = False, steps: int = 300, wind_speed: float = 3.5, soft_pid: bool = False):
     render_mode = "human" if gui else ("rgb_array" if record else None)
 
     print("=" * 85)
     print(" DEMO TRỰC QUAN HÓA CUỘN XOÁY GIÓ 3D (WIND GUST SWIRLS - USER ICON)")
+    print(f" Chế độ điều khiển PID: {'MỀM / DỄ LUNG LAY (Compliant)' if soft_pid else 'CỨNG / BÁM CHẶT (Stiff)'}")
     print("=" * 85)
     print(f"[*] Tốc độ gió: {wind_speed:.2f} m/s")
     print("[*] Biểu tượng: 3 dòng khí uốn cong với các vòng xoáy tròn 3D ở đầu mút bao bọc quanh Drone")
@@ -44,7 +45,7 @@ def run_swirls_demo(gui: bool = False, record: bool = False, steps: int = 300, w
     wind_cfg = WindConfig(
         model=WindModel.CONSTANT,
         constant_wind=wind_vector,
-        drag_coefficient=0.002,
+        drag_coefficient=0.005,
     )
 
     custom_xml = get_windsock_xml(wind_dir=wind_vector, wind_speed=wind_speed)
@@ -58,7 +59,7 @@ def run_swirls_demo(gui: bool = False, record: bool = False, steps: int = 300, w
 
     env = WindWrapper(base_env, wind_config=wind_cfg)
     obs, info = env.reset()
-    ctrl = PIDControl(base_env)
+    ctrl = PIDControl(base_env, mode="compliant" if soft_pid else "stiff")
     target_pos = np.array([0.0, 0.0, 1.0])
 
     frames = []
@@ -105,4 +106,10 @@ def run_swirls_demo(gui: bool = False, record: bool = False, steps: int = 300, w
 
 if __name__ == "__main__":
     args = parse_wind_args("Demo Trực quan hóa Biểu tượng Cuộn Xoáy Gió 3D")
-    run_swirls_demo(gui=args.gui, record=args.record, steps=args.steps, wind_speed=args.wind_speed)
+    run_swirls_demo(
+        gui=args.gui,
+        record=args.record,
+        steps=args.steps,
+        wind_speed=args.wind_speed,
+        soft_pid=args.soft_pid,
+    )

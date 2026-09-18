@@ -27,16 +27,17 @@ from multi_drone_mujoco.control.pid_control import PIDControl
 from controller_utils3 import rpm_to_normalized_action, save_gif, get_windsock_xml, parse_wind_args
 
 
-def run_benchmark_trial(with_wind=False, steps=250, record=False, gui=False):
+def run_benchmark_trial(with_wind=False, steps=250, record=False, gui=False, soft_pid=False):
     target_pos = np.array([0.0, 0.0, 1.0])
     
     if with_wind:
         wind_cfg = WindConfig(
             model=WindModel.COMBINED,
-            constant_wind=np.array([1.5, 0.0, 0.0]),
-            turbulence_intensity=1.2,
-            gust_intensity=0.008,
-            gust_probability=0.03
+            constant_wind=np.array([2.5, 0.0, 0.0]),
+            turbulence_intensity=1.8,
+            gust_intensity=0.035,
+            gust_probability=0.04,
+            drag_coefficient=0.006
         )
         custom_xml = get_windsock_xml(wind_dir=wind_cfg.constant_wind)
     else:
@@ -54,7 +55,7 @@ def run_benchmark_trial(with_wind=False, steps=250, record=False, gui=False):
     
     env = WindWrapper(base_env, wind_config=wind_cfg)
     obs, info = env.reset(seed=42)
-    ctrl = PIDControl(base_env)
+    ctrl = PIDControl(base_env, mode="compliant" if soft_pid else "stiff")
     
     frames = []
     pos_errors = []
@@ -81,12 +82,12 @@ def run_benchmark_trial(with_wind=False, steps=250, record=False, gui=False):
             if f is not None:
                 frames.append(f)
                 
-        # Ghi nhận chỉ số sau bước ổn định ban đầu (sau step 50)
-        if step >= 50:
+        # Ghi nhận chỉ số sau bước ổn định ban đầu
+        warmup_step = min(50, max(1, steps // 4))
+        if step >= warmup_step:
             pos_err = np.linalg.norm(base_env.pos[0] - target_pos)
             tilt_deg = np.degrees(np.arccos(np.clip(1 - 2 * (base_env.quat[0, 1]**2 + base_env.quat[0, 2]**2), -1, 1)))
             pos_errors.append(pos_err)
-            rpms_list.append(np.mean(base_env.data.actuator_force))
             tilts_list.append(tilt_deg)
             
     env.close()
@@ -100,16 +101,17 @@ def run_benchmark_trial(with_wind=False, steps=250, record=False, gui=False):
     return metrics
 
 
-def run_comparison_demo(gui: bool = False, record: bool = False, steps: int = 250):
+def run_comparison_demo(gui: bool = False, record: bool = False, steps: int = 250, soft_pid: bool = False):
     print("=" * 80)
     print(" BẮT ĐẦU ĐÁNH GIÁ ĐỐI CHUẨN: KHÔNG GIÓ (BASELINE) vs CÓ GIÓ (WINDWRAPPER)")
+    print(f" Chế độ điều khiển PID: {'MỀM / DỄ LUNG LAY (Compliant)' if soft_pid else 'CỨNG / BÁM CHẶT (Stiff)'}")
     print("=" * 80)
     
     print("\n>>> [1/2] Đang chạy mô phỏng: KHÔNG CÓ GIÓ (No Wind)...")
-    res_no_wind = run_benchmark_trial(with_wind=False, steps=steps, record=record, gui=gui)
+    res_no_wind = run_benchmark_trial(with_wind=False, steps=steps, record=record, gui=gui, soft_pid=soft_pid)
     
     print(">>> [2/2] Đang chạy mô phỏng: CÓ GIÓ MẠNH (Wind Active)...")
-    res_wind = run_benchmark_trial(with_wind=True, steps=steps, record=record, gui=gui)
+    res_wind = run_benchmark_trial(with_wind=True, steps=steps, record=record, gui=gui, soft_pid=soft_pid)
     
     print("\n" + "=" * 80)
     print(f"{'Chỉ số đo lường (Metrics)':<35} | {'Không có gió (No Wind)':<20} | {'Có gió (Wind Active)':<20}")
@@ -135,5 +137,6 @@ if __name__ == "__main__":
     run_comparison_demo(
         gui=args.gui,
         record=args.record,
-        steps=args.steps
+        steps=args.steps,
+        soft_pid=args.soft_pid
     )

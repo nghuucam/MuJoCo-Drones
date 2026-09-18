@@ -199,20 +199,25 @@ def parse_wind_args(title: str = "Test WindWrapper") -> argparse.Namespace:
     parser.add_argument(
         "--wind-speed",
         type=float,
-        default=1.5,
-        help="Vận tốc gió danh định (m/s, mặc định: 1.5 m/s)",
+        default=3.5,
+        help="Vận tốc gió danh định (m/s, mặc định: 3.5 m/s)",
     )
     parser.add_argument(
         "--turbulence",
         type=float,
-        default=1.0,
-        help="Cường độ nhiễu loạn Dryden (0.5=nhẹ, 1.0=vừa, 2.0=mạnh)",
+        default=1.8,
+        help="Cường độ nhiễu loạn Dryden (1.0=nhẹ, 1.8=vừa, 2.5=mạnh)",
     )
     parser.add_argument(
         "--gust-intensity",
         type=float,
-        default=0.008,
-        help="Lực gió giật tối đa (Newton, mặc định: 0.008 N)",
+        default=0.045,
+        help="Lực gió giật tối đa (Newton, mặc định: 0.045 N ~ 17% trọng lượng drone)",
+    )
+    parser.add_argument(
+        "--soft-pid",
+        action="store_true",
+        help="Bật chế độ PID mềm dẻo (compliant) để drone bồng bềnh và lung lay tự nhiên theo gió",
     )
     parser.add_argument(
         "--camera",

@@ -10,13 +10,16 @@ import numpy as np
 class PIDControl:
     """PID controller for a single Crazyflie drone."""
 
-    def __init__(self, env=None):
+    def __init__(self, env=None, mode: str = "stiff"):
         """Initialize PID gains.
 
         Parameters
         ----------
         env : BaseAviary, optional
             Environment instance to read drone parameters from.
+        mode : str, optional
+            'stiff': Rigidly counteracts wind with high derivative damping.
+            'compliant' / 'soft': Realistic compliance allowing natural drone sway and wobble in wind.
         """
         if env is not None:
             self.GRAVITY = env.G
@@ -38,11 +41,8 @@ class PIDControl:
             self.MAX_RPM = self.HOVER_RPM * 1.5
             self.J = np.diag([1.4e-5, 1.4e-5, 2.17e-5])
 
-        # Position PID gains (tuned for MuJoCo Crazyflie dynamics)
-        # Produces desired acceleration in m/s^2; critically damped
-        self.P_COEFF_FOR = np.array([0.4, 0.4, 1.0])
-        self.I_COEFF_FOR = np.array([0.01, 0.01, 0.01])
-        self.D_COEFF_FOR = np.array([0.9, 0.9, 2.0])
+        self.mode = mode
+        self._apply_gains(mode)
 
         # Attitude PID gains — must be tiny to stay within torque envelope
         # Max achievable torque ~0.004 Nm; keep PID output well below this
@@ -55,6 +55,23 @@ class PIDControl:
         self.integral_rpy_e = np.zeros(3)
         self.last_pos_e = np.zeros(3)
         self.last_rpy_e = np.zeros(3)
+
+    def _apply_gains(self, mode: str):
+        if mode in ("compliant", "soft", "natural"):
+            # Natural compliance: allows realistic aerodynamic swaying and rocking
+            self.P_COEFF_FOR = np.array([0.35, 0.35, 0.9])
+            self.I_COEFF_FOR = np.array([0.008, 0.008, 0.01])
+            self.D_COEFF_FOR = np.array([0.45, 0.45, 1.4])
+        else:
+            # Stiff mode: critically damped tight hold
+            self.P_COEFF_FOR = np.array([0.4, 0.4, 1.0])
+            self.I_COEFF_FOR = np.array([0.01, 0.01, 0.01])
+            self.D_COEFF_FOR = np.array([0.9, 0.9, 2.0])
+
+    def set_mode(self, mode: str):
+        """Switch controller tuning between 'stiff' and 'compliant'."""
+        self.mode = mode
+        self._apply_gains(mode)
 
     def reset(self):
         """Reset integral accumulators."""

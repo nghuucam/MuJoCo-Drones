@@ -26,14 +26,15 @@ from multi_drone_mujoco.control.pid_control import PIDControl
 from controller_utils3 import rpm_to_normalized_action, save_gif, get_windsock_xml, parse_wind_args
 
 
-def run_sinusoidal_wind_demo(gui: bool = False, record: bool = False, steps: int = 350, camera: str = "track"):
+def run_sinusoidal_wind_demo(gui: bool = False, record: bool = False, steps: int = 350, camera: str = "track", soft_pid: bool = False):
     render_mode = "human" if gui else ("rgb_array" if record else None)
     
     PERIOD_SEC = 2.5
-    AMPLITUDE_N = 0.006
+    AMPLITUDE_N = 0.035
     
     print("=" * 85)
     print(f" KIỂM TRA WINDWRAPPER: MÔ HÌNH GIÓ ĐIỀU HÒA HÌNH SIN (PERIOD = {PERIOD_SEC}s, AMP = {AMPLITUDE_N}N)")
+    print(f" Chế độ điều khiển PID: {'MỀM / DỄ LUNG LAY (Compliant)' if soft_pid else 'CỨNG / BÁM CHẶT (Stiff)'}")
     print("=" * 85)
     
     wind_cfg = WindConfig(
@@ -53,7 +54,7 @@ def run_sinusoidal_wind_demo(gui: bool = False, record: bool = False, steps: int
     
     env = WindWrapper(base_env, wind_config=wind_cfg)
     obs, info = env.reset()
-    ctrl = PIDControl(base_env)
+    ctrl = PIDControl(base_env, mode="compliant" if soft_pid else "stiff")
     target_pos = np.array([0.0, 0.0, 1.0])
     
     print(f"[*] Biên độ lực gió (Amplitude): {AMPLITUDE_N} N")
@@ -119,5 +120,6 @@ if __name__ == "__main__":
         gui=args.gui,
         record=args.record,
         steps=args.steps,
-        camera=args.camera
+        camera=args.camera,
+        soft_pid=args.soft_pid
     )

@@ -28,21 +28,22 @@ from multi_drone_mujoco.control.pid_control import PIDControl
 from controller_utils3 import rpm_to_normalized_action, save_gif, get_windsock_xml, parse_wind_args
 
 
-def run_combined_wind_demo(gui: bool = False, record: bool = False, steps: int = 350, camera: str = "track"):
+def run_combined_wind_demo(gui: bool = False, record: bool = False, steps: int = 350, camera: str = "track", soft_pid: bool = False):
     render_mode = "human" if gui else ("rgb_array" if record else None)
     
     print("=" * 85)
     print(" KIỂM TRA WINDWRAPPER: MÔ HÌNH GIÓ BÃO KẾT HỢP (COMBINED EXTREME WEATHER)")
+    print(f" Chế độ điều khiển PID: {'MỀM / DỄ LUNG LAY (Compliant)' if soft_pid else 'CỨNG / BÁM CHẶT (Stiff)'}")
     print("=" * 85)
     
     wind_cfg = WindConfig(
         model=WindModel.COMBINED,
-        constant_wind=np.array([1.2, 0.5, 0.0]),  # Gió thổi chéo X-Y 1.3 m/s
-        turbulence_intensity=1.5,                 # Nhiễu loạn Dryden mạnh
-        gust_intensity=0.012,                     # Gió giật mạnh 0.012 N
+        constant_wind=np.array([2.8, 1.2, 0.0]),  # Gió thổi chéo X-Y ~3.0 m/s
+        turbulence_intensity=1.8,                 # Nhiễu loạn Dryden chân thực
+        gust_intensity=0.040,                     # Gió giật mạnh 0.040 N (~15% trọng lượng drone)
         gust_probability=0.04,
-        gust_duration_steps=12,
-        drag_coefficient=0.001
+        gust_duration_steps=15,
+        drag_coefficient=0.006
     )
     
     custom_xml = get_windsock_xml(wind_dir=wind_cfg.constant_wind)
@@ -56,7 +57,7 @@ def run_combined_wind_demo(gui: bool = False, record: bool = False, steps: int =
     
     env = WindWrapper(base_env, wind_config=wind_cfg)
     obs, info = env.reset()
-    ctrl = PIDControl(base_env)
+    ctrl = PIDControl(base_env, mode="compliant" if soft_pid else "stiff")
     target_pos = np.array([0.0, 0.0, 1.0])
     
     print(f"[*] Thành phần gió kết hợp:")
@@ -121,5 +122,6 @@ if __name__ == "__main__":
         gui=args.gui,
         record=args.record,
         steps=args.steps,
-        camera=args.camera
+        camera=args.camera,
+        soft_pid=args.soft_pid
     )

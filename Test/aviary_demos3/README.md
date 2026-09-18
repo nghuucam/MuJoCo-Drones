@@ -114,3 +114,21 @@ Visualizes animated 3D aerodynamic wind streamlines with looped curls curling al
 python 08_test_wind_swirls_icon.py --gui
 python run_all_wind.py --model swirls --gui
 ```
+
+---
+
+## 7. PID Controller Modes (`--soft-pid` Compliant vs Stiff)
+
+By default, an industrial-grade quadrotor PID controller can be very stiff and aggressively cancels disturbances within milliseconds. To observe realistic natural wobbling, swaying, and rocking ("lung lay") in wind turbulence, all scripts support the `--soft-pid` flag:
+
+- **Default (`stiff`)**: Highly damped ($D = 0.9$), tightly holds setpoint position with strong tilt correction.
+- **Compliant (`--soft-pid`)**: Relaxed position derivative damping ($D = 0.45$), allowing the drone to visibly rock and sway under fluctuating wind gusts and Dryden atmospheric turbulence without becoming unstable.
+
+```powershell
+# Compare stiff vs soft-pid in Dryden turbulence
+python 03_test_wind_dryden.py --gui
+python 03_test_wind_dryden.py --gui --soft-pid
+
+# Run all test suites in compliant mode
+python run_all_wind.py --gui --soft-pid
+```

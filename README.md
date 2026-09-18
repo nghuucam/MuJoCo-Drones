@@ -1,76 +1,97 @@
 # MJ-drones-gym
 
-**MuJoCo-based multi-drone Gymnasium environments for single and multi-agent reinforcement learning of quadcopter control.**
+**MuJoCo-based multi-drone Gymnasium environments for single & multi-agent reinforcement learning, hierarchical control, and vision-based obstacle avoidance.**
 
-High-fidelity quadcopter simulation with GPU-vectorized environments, Dryden wind turbulence, domain randomization, obstacle generation, and curriculum learning — all built on [MuJoCo](https://mujoco.org/).
+High-fidelity quadcopter simulation with GPU-vectorized environments, Dryden wind turbulence, domain randomization, obstacle generation, hierarchical PID/RL control, and vision-based navigation — all built on [MuJoCo](https://mujoco.org/).
 
-## Features
+---
 
-- **MuJoCo physics** — faster and more accurate than PyBullet
-- **Gymnasium API** — drop-in compatible with stable-baselines3, CleanRL, etc.
-- **Multi-drone support** — N arbitrary drones with inter-drone effects
-- **Aerodynamic effects** — ground effect, drag, downwash (individually toggleable)
-- **Multiple action types** — RPM, normalized thrust, velocity, PID waypoint
-- **Multiple observation types** — kinematics (state vector), RGB camera
-- **PID controllers** — tuned cascaded position/attitude PID (PIDControl + DSLPIDControl)
-- **PettingZoo multi-agent** — parallel environment wrapper for MARL
-- **7 task environments** — hover, velocity tracking, waypoint navigation, formation, racing, and more
-- **SB3 examples** — ready-to-run PPO training scripts
+## ✨ Features
 
-## Installation
+- **MuJoCo physics** — faster, cleaner, and more numerically stable than PyBullet.
+- **Gymnasium API** — drop-in compatible with Stable-Baselines3, CleanRL, RLlib, etc.
+- **Hierarchical Control Architecture**:
+  - **High-Level RL Agent (PPO)**: Computes spherical displacement commands $(\alpha, \beta, d)$ from FPV visual observations.
+  - **Low-Level Controller (DSLPIDControl)**: High-rate inner-loop cascaded PID stabilizing 6-DoF attitude and motor RPMs.
+- **Vision-based Obstacle Avoidance (`Graduation/`)**:
+  - First-Person View (FPV) RGB camera observation ($64 \times 64 \times 3$).
+  - Cylindrical & box obstacle fields with randomized heights ($0.1\text{m} - 3.0\text{m}$).
+  - Spherical action space with hard ground-safety constraints ($z \ge 0.4\text{m}$).
+  - Multi-core parallel training (`SubprocVecEnv`) with real-time TensorBoard monitoring.
+- **Multi-drone support** — $N$ arbitrary drones with aerodynamic effects (ground effect, drag, downwash).
+- **Multiple action & observation types** — RPM, normalized thrust, velocity, PID waypoint, kinematics, and RGB camera.
+- **PettingZoo multi-agent** — parallel environment wrapper for Multi-Agent RL (MARL).
+- **Task environments** — Hover, velocity tracking, waypoint navigation, formation, racing, and vision obstacle avoidance.
 
+---
+
+## 📦 Installation
+
+This project uses modern Python packaging via `pyproject.toml` (PEP 517/518/621).
+
+### 1. Basic Installation
 ```bash
 git clone <this-repo>
-cd multi_drone_mujoco/
+cd MuJoCo-Drones/
 pip install -e .
-pip install -e ".[all]"
 ```
 
-### Requirements
-- Python ≥ 3.8
-- MuJoCo ≥ 3.0
-- Gymnasium ≥ 0.29
-- NumPy ≥ 1.21
+### 2. Full Installation (RL + Obstacle Avoidance + TensorBoard)
+To install with reinforcement learning (Stable-Baselines3, TensorBoard, Rich, tqdm) and visualization dependencies:
+```bash
+pip install -e ".[all]"
+```
+Or for RL only:
+```bash
+pip install -e ".[rl]"
+```
 
-## Quick Start
+### System Requirements:
+- Python $\ge$ 3.8
+- MuJoCo $\ge$ 3.0
+- Gymnasium $\ge$ 0.29
+- NumPy $\ge$ 1.21
 
-### PID Control
+---
+
+## 🚀 Quick Start
+
+### 1. Vision-based Obstacle Avoidance (Graduation Thesis)
+
+Train an autonomous drone agent using multi-process PPO and FPV camera input:
+
+```bash
+cd Graduation/
+
+# Train with 4 CPU workers in parallel
+python train_parallel.py --num-cpu 4 --timesteps 500000 --batch-size 64
+
+# Monitor live training in TensorBoard
+tensorboard --logdir logs/ppo_parallel
+```
+
+Test the environment and visual GUI:
+```bash
+# Verify environment API compliance
+python test_env.py
+
+# Interactive 3D visualization in MuJoCo viewer
+python test_gui.py
+```
+
+### 2. PID Control Example
 
 ```python
 import numpy as np
 from multi_drone_mujoco.envs.base_aviary import BaseAviary
 from multi_drone_mujoco.control.pid_control import PIDControl
-from multi_drone_mujoco.utils.enums import Physics
-
-env = BaseAviary(num_drones=1, ctrl_freq=240, sim_freq=240, physics=Physics.MJC)
-ctrl = PIDControl(env)
-env.reset()
-
-target = np.array([0.5, 0.3, 1.0])
-for _ in range(4800):
-    rpm, _, _ = ctrl.computeControl(
-        env.CTRL_TIMESTEP, env.pos[0], env.quat[0],
-        env.vel[0], env.ang_v[0], target
-    )
-    env.step(rpm.flatten())
+{{ ... }}
 
 print(f"Final position error: {np.linalg.norm(env.pos[0] - target):.4f} m")
 env.close()
 ```
 
-### Reinforcement Learning (SB3 PPO)
-
-```python
-from stable_baselines3 import PPO
-from multi_drone_mujoco.envs.hover_aviary import HoverAviary
-
-env = HoverAviary(ctrl_freq=48)
-model = PPO("MlpPolicy", env, verbose=1)
-model.learn(total_timesteps=500_000)
-model.save("hover_ppo")
-```
-
-### Multi-Agent RL (PettingZoo)
+### 3. Multi-Agent RL (PettingZoo)
 
 ```python
 from multi_drone_mujoco.envs.multi_agent_aviary import MultiAgentAviary
@@ -81,108 +102,50 @@ actions = {agent: env.action_space(agent).sample() for agent in env.agents}
 obs, rewards, terms, truncs, infos = env.step(actions)
 ```
 
-## Examples
+---
 
-```bash
-cd multi_drone_mujoco/examples/
-python pid.py
-python downwash.py
-python learn.py
-python play.py
+## 📂 Project Structure
+
+```
+MuJoCo-Drones/
+├── pyproject.toml              # Modern package configuration & dependencies (PEP 621)
+├── setup.py                    # Backward compatibility shim
+├── README.md                   # Project documentation
+│
+├── Graduation/                 # Autonomous Navigation & Obstacle Avoidance
+│   ├── drone_ppo_env.py        # Gymnasium env (FPV camera, spherical action, safety bound)
+│   ├── config.py               # World, obstacle, and reward hyperparameters
+│   ├── train_parallel.py       # Multi-core PPO training with SubprocVecEnv & TensorBoard
+│   ├── train_ppo.py            # Single-process baseline training script
+│   ├── test_env.py             # SB3 check_env & action-step verification
+│   └── test_gui.py             # 3D interactive viewer with PID & obstacle field
+│
+├── multi_drone_mujoco/         # Core simulation library
+│   ├── envs/                   # Gymnasium environments (Hover, Velocity, Race, etc.)
+│   ├── control/                # Cascaded PID controllers (PIDControl, DSLPIDControl)
+│   ├── utils/                  # Enums, logger, coordinate transformations
+│   └── examples/               # Reference scripts
+└── tests/                      # Unit and integration tests
 ```
 
-## Environments
+---
 
-| Environment | Obs Dim | Action | Description |
-|---|---|---|---|
-| `HoverAviary` | 12 | 4 (normalized RPM) | Hover at z=1.0 |
-| `VelocityAviary` | 16 | 4 (normalized RPM) | Track velocity commands |
-| `MultiHoverAviary` | 13×N | 4×N | N drones at different heights |
-| `FlyThroughAviary` | 18 | 4 | Navigate through waypoints |
-| `FormationAviary` | 18×N | 4×N | Formation flying along a path |
-| `RaceAviary` | 21 | 4 | Gate racing with lap timing |
-| `MultiAgentAviary` | per-agent | per-agent | PettingZoo parallel wrapper |
-
-## Physics Modes
-
-| Mode | Description |
-|---|---|
-| `Physics.MJC` | Pure MuJoCo (force injection via xfrc_applied) |
-| `Physics.DYN` | Explicit dynamics (Euler integration) |
-| `Physics.MJC_GND` | MuJoCo + ground effect |
-| `Physics.MJC_DRAG` | MuJoCo + aerodynamic drag |
-| `Physics.MJC_DW` | MuJoCo + downwash |
-| `Physics.MJC_GND_DRAG_DW` | MuJoCo + all aerodynamic effects |
-
-## Tests
+## 🧪 Running Tests
 
 ```bash
 pytest multi_drone_mujoco/tests/ -v
 ```
 
-## Project Structure
+---
 
-```
-multi_drone_mujoco/
-├── envs/
-│   ├── base_aviary.py
-│   ├── hover_aviary.py
-│   ├── velocity_aviary.py
-│   ├── multi_hover_aviary.py
-│   ├── fly_through_aviary.py
-│   ├── formation_aviary.py
-│   ├── race_aviary.py
-│   └── multi_agent_aviary.py
-├── control/
-│   ├── pid_control.py
-│   └── dsl_pid_control.py
-├── utils/
-│   ├── enums.py
-│   └── logger.py
-├── examples/
-│   ├── pid.py
-│   ├── downwash.py
-│   ├── learn.py
-│   └── play.py
-├── tests/
-│   ├── test_envs.py
-│   ├── test_control.py
-│   └── test_multi_agent.py
-└── setup.py
-```
+## 📜 Citation & Acknowledgements
 
-## Differences from gym-pybullet-drones
+- **MuJoCo Menagerie**: Bitcraze Crazyflie 2.x MJCF model.
+- **gym-pybullet-drones**: Reference architecture for quadcopter gym environments.
+- **Stable-Baselines3**: PPO algorithm and vectorization wrappers.
 
-| | gym-pybullet-drones | gym-mujoco-drones |
-|---|---|---|
-| Physics | PyBullet | MuJoCo (faster, more accurate) |
-| Rendering | PyBullet GUI | MuJoCo viewer / offscreen RGB |
-| Firmware SITL | Betaflight, CF firmware | — |
-| Task environments | 2 (Hover, MultiHover) | 7 (+ velocity, waypoint, formation, race) |
-| Multi-agent | Custom | PettingZoo standard |
+---
 
-## Citation
+## 📄 License
 
-If you use this work, please cite:
-
-```bibtex
-@misc{tayal2026mujocodronesgym,
-  title={MuJoCo-Drones-Gym: A GPU-Accelerated Multi-Drone Simulator for Control and Reinforcement Learning}, 
-      author={Manan Tayal},
-      year={2026},
-      eprint={2606.08039},
-      archivePrefix={arXiv},
-      primaryClass={cs.RO},
-      url={https://arxiv.org/abs/2606.08039}, 
-}
-```
-
-## Acknowledgements
-
-- [gym-pybullet-drones](https://github.com/learnsyslab/gym-pybullet-drones) — inspiration for the environment API and task design
-- [MuJoCo Menagerie](https://github.com/google-deepmind/mujoco_menagerie) — Bitcraze Crazyflie 2.x MJCF model
-- [Bitcraze](https://www.bitcraze.io/) — Crazyflie 2.x hardware platform and firmware parameters
-
-## License
-
-MIT
+MIT License.

@@ -1,25 +1,32 @@
 Metadata-Version: 2.4
 Name: gym-mujoco-drones
 Version: 1.0.0
-Summary: MuJoCo-based multi-drone Gymnasium environments for single and multi-agent RL
-Author: 
+Summary: MuJoCo-based multi-drone Gymnasium environments for single and multi-agent RL & autonomous navigation
 License: MIT
 Requires-Python: >=3.8
 Description-Content-Type: text/markdown
 Requires-Dist: gymnasium>=0.29.0
 Requires-Dist: mujoco>=3.0.0
 Requires-Dist: numpy>=1.21.0
+Requires-Dist: scipy>=1.9.0
 Provides-Extra: rl
 Requires-Dist: stable-baselines3>=2.0.0; extra == "rl"
+Requires-Dist: tensorboard>=2.10.0; extra == "rl"
+Requires-Dist: rich>=12.0.0; extra == "rl"
+Requires-Dist: tqdm>=4.60.0; extra == "rl"
 Provides-Extra: marl
 Requires-Dist: pettingzoo>=1.24.0; extra == "marl"
 Provides-Extra: viz
 Requires-Dist: matplotlib>=3.5.0; extra == "viz"
+Requires-Dist: Pillow>=9.0.0; extra == "viz"
 Provides-Extra: gpu
 Requires-Dist: jax[cuda12]; extra == "gpu"
 Requires-Dist: mujoco-mjx>=3.0.0; extra == "gpu"
 Provides-Extra: all
 Requires-Dist: stable-baselines3>=2.0.0; extra == "all"
+Requires-Dist: tensorboard>=2.10.0; extra == "all"
+Requires-Dist: rich>=12.0.0; extra == "all"
+Requires-Dist: tqdm>=4.60.0; extra == "all"
 Requires-Dist: pettingzoo>=1.24.0; extra == "all"
 Requires-Dist: matplotlib>=3.5.0; extra == "all"
 Requires-Dist: Pillow>=9.0.0; extra == "all"
@@ -27,13 +34,12 @@ Requires-Dist: jax[cuda12]; extra == "all"
 Requires-Dist: mujoco-mjx>=3.0.0; extra == "all"
 Provides-Extra: dev
 Requires-Dist: pytest>=7.0; extra == "dev"
-Dynamic: requires-python
 
-# gym-mujoco-drones
+# MJ-drones-gym
 
 **MuJoCo-based multi-drone Gymnasium environments for single and multi-agent reinforcement learning of quadcopter control.**
 
-A high-fidelity replacement for [gym-pybullet-drones](https://github.com/learnsyslab/gym-pybullet-drones), using [MuJoCo](https://mujoco.org/) as the physics backend and the [Bitcraze Crazyflie 2.x](https://www.bitcraze.io/products/crazyflie-2-1/) model from [mujoco_menagerie](https://github.com/google-deepmind/mujoco_menagerie).
+High-fidelity quadcopter simulation with GPU-vectorized environments, Dryden wind turbulence, domain randomization, obstacle generation, and curriculum learning — all built on [MuJoCo](https://mujoco.org/).
 
 ## Features
 
@@ -53,8 +59,8 @@ A high-fidelity replacement for [gym-pybullet-drones](https://github.com/learnsy
 ```bash
 git clone <this-repo>
 cd multi_drone_mujoco/
-pip install -e .          # core
-pip install -e ".[all]"   # with RL, MARL, and visualization extras
+pip install -e .
+pip install -e ".[all]"
 ```
 
 ### Requirements
@@ -116,10 +122,10 @@ obs, rewards, terms, truncs, infos = env.step(actions)
 
 ```bash
 cd multi_drone_mujoco/examples/
-python pid.py          # PID hover + velocity tracking + multi-drone
-python downwash.py     # downwash effect demonstration
-python learn.py        # SB3 PPO training (single + multi hover)
-python play.py         # visualize trained policy
+python pid.py
+python downwash.py
+python learn.py
+python play.py
 ```
 
 ## Environments
@@ -156,29 +162,29 @@ pytest multi_drone_mujoco/tests/ -v
 ```
 multi_drone_mujoco/
 ├── envs/
-│   ├── base_aviary.py          # Core physics engine + Gymnasium env
-│   ├── hover_aviary.py         # Single-drone hover task
-│   ├── velocity_aviary.py      # Velocity tracking task
-│   ├── multi_hover_aviary.py   # Multi-drone hover
-│   ├── fly_through_aviary.py   # Waypoint navigation
-│   ├── formation_aviary.py     # Formation flying
-│   ├── race_aviary.py          # Gate racing
-│   └── multi_agent_aviary.py   # PettingZoo wrapper
+│   ├── base_aviary.py
+│   ├── hover_aviary.py
+│   ├── velocity_aviary.py
+│   ├── multi_hover_aviary.py
+│   ├── fly_through_aviary.py
+│   ├── formation_aviary.py
+│   ├── race_aviary.py
+│   └── multi_agent_aviary.py
 ├── control/
-│   ├── pid_control.py          # Cascaded PID controller
-│   └── dsl_pid_control.py      # Enhanced PID with anti-windup
+│   ├── pid_control.py
+│   └── dsl_pid_control.py
 ├── utils/
-│   ├── enums.py                # DroneModel, Physics, ActionType, etc.
-│   └── logger.py               # CSV logging + matplotlib plotting
+│   ├── enums.py
+│   └── logger.py
 ├── examples/
-│   ├── pid.py                  # PID control demos
-│   ├── downwash.py             # Downwash visualization
-│   ├── learn.py                # SB3 PPO training
-│   └── play.py                 # Trained model playback
+│   ├── pid.py
+│   ├── downwash.py
+│   ├── learn.py
+│   └── play.py
 ├── tests/
-│   ├── test_envs.py            # Environment tests
-│   ├── test_control.py         # Controller tests
-│   └── test_multi_agent.py     # MARL tests
+│   ├── test_envs.py
+│   ├── test_control.py
+│   └── test_multi_agent.py
 └── setup.py
 ```
 
@@ -197,11 +203,22 @@ multi_drone_mujoco/
 If you use this work, please cite:
 
 ```bibtex
-@software{gym_mujoco_drones,
-  title={gym-mujoco-drones: MuJoCo Multi-Drone Environments for RL},
-  year={2026},
+@misc{tayal2026mujocodronesgym,
+  title={MuJoCo-Drones-Gym: A GPU-Accelerated Multi-Drone Simulator for Control and Reinforcement Learning}, 
+      author={Manan Tayal},
+      year={2026},
+      eprint={2606.08039},
+      archivePrefix={arXiv},
+      primaryClass={cs.RO},
+      url={https://arxiv.org/abs/2606.08039}, 
 }
 ```
+
+## Acknowledgements
+
+- [gym-pybullet-drones](https://github.com/learnsyslab/gym-pybullet-drones) — inspiration for the environment API and task design
+- [MuJoCo Menagerie](https://github.com/google-deepmind/mujoco_menagerie) — Bitcraze Crazyflie 2.x MJCF model
+- [Bitcraze](https://www.bitcraze.io/) — Crazyflie 2.x hardware platform and firmware parameters
 
 ## License
 

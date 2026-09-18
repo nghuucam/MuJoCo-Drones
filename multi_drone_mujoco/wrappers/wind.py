@@ -56,15 +56,15 @@ class WindConfig:
     """
     model: WindModel = WindModel.NONE
     constant_wind: Optional[np.ndarray] = None  # m/s in world frame
-    gust_intensity: float = 0.005               # N
-    gust_probability: float = 0.02              # per step
-    gust_duration_steps: int = 10
-    turbulence_intensity: float = 1.0           # sigma scale
+    gust_intensity: float = 0.040               # N (~15% of Crazyflie weight 0.265 N)
+    gust_probability: float = 0.04              # per step
+    gust_duration_steps: int = 15
+    turbulence_intensity: float = 1.5           # sigma scale
     altitude: float = 1.0                       # m (for Dryden length scale)
-    airspeed: float = 0.5                       # m/s
-    sinusoidal_amplitude: float = 0.003         # N
-    sinusoidal_period: float = 2.0              # seconds
-    drag_coefficient: float = 0.001             # Cd*A for wind drag
+    airspeed: float = 1.0                       # m/s
+    sinusoidal_amplitude: float = 0.030         # N (~11% of drone weight)
+    sinusoidal_period: float = 2.5              # seconds
+    drag_coefficient: float = 0.005             # Cd*A including rotor drag & body
 
     def __post_init__(self):
         if self.constant_wind is None:
@@ -206,12 +206,12 @@ class WindField:
         L_v = np.clip(L_v, 0.5, 50.0)
         L_w = np.clip(L_w, 0.25, 25.0)
 
-        V = max(self.config.airspeed, 0.1)
+        V = max(self.config.airspeed, 0.5)
 
-        # Turbulence intensities (light turbulence at low altitude)
-        sigma_u = sigma * 0.1  # m/s turbulence velocity
-        sigma_v = sigma * 0.1
-        sigma_w = sigma * 0.05
+        # Turbulence intensities (m/s atmospheric turbulence velocity fluctuations)
+        sigma_u = sigma * 0.9  # m/s longitudinal turbulence
+        sigma_v = sigma * 0.9  # m/s lateral turbulence
+        sigma_w = sigma * 0.45 # m/s vertical turbulence
 
         # First-order filter: dx/dt = -V/L * x + sqrt(2*V/L) * sigma * white_noise
         white = self._rng.normal(size=3)
@@ -223,9 +223,10 @@ class WindField:
         noise_scale = sigma_vec * np.sqrt(1 - alpha ** 2)
         self._dryden_state = alpha * self._dryden_state + noise_scale * white
 
-        # Convert turbulence velocity to force: F = 0.5*rho*Cd*A*v_turb^2 * sign
+        # Convert turbulence velocity to aerodynamic disturbance force:
+        # Effective cross-sectional area accounts for body skin drag + spinning rotor drag
         rho = 1.225
-        Cd_A = self.config.drag_coefficient
+        Cd_A = max(self.config.drag_coefficient, 0.006)
         force = 0.5 * rho * Cd_A * self._dryden_state * np.abs(self._dryden_state)
         return force
 

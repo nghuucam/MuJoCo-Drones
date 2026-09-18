@@ -27,18 +27,19 @@ from multi_drone_mujoco.control.pid_control import PIDControl
 from controller_utils3 import rpm_to_normalized_action, save_gif, get_windsock_xml, parse_wind_args
 
 
-def run_gust_wind_demo(gui: bool = False, record: bool = False, steps: int = 350, gust_intensity: float = 0.010, camera: str = "track"):
+def run_gust_wind_demo(gui: bool = False, record: bool = False, steps: int = 350, gust_intensity: float = 0.045, soft_pid: bool = False, camera: str = "track"):
     render_mode = "human" if gui else ("rgb_array" if record else None)
     
     print("=" * 85)
-    print(f" KIỂM TRA WINDWRAPPER: MÔ HÌNH GIÓ GIẬT BẤT NGỜ (GUST FORCE = {gust_intensity:.4f} N)")
+    print(f" KIỂM TRA WINDWRAPPER: MÔ HÌNH GIÓ GIẬT BẤT NGỜ (GUST FORCE = {gust_intensity:.4f} N ~ {gust_intensity/0.265*100:.1f}% trọng lượng drone)")
+    print(f" Chế độ điều khiển: {'Compliant PID (bồng bềnh, lung lay)' if soft_pid else 'Stiff PID (kháng gió gồng góc nghiêng)'}")
     print("=" * 85)
     
     wind_cfg = WindConfig(
         model=WindModel.GUST,
         gust_intensity=gust_intensity,
-        gust_probability=0.04,         # 4% xác suất mỗi bước xảy ra cơn gió giật
-        gust_duration_steps=15,        # Kéo dài khoảng 0.3 giây
+        gust_probability=0.05,         # 5% xác suất mỗi bước xảy ra cơn gió giật
+        gust_duration_steps=18,        # Kéo dài khoảng 0.38 giây
     )
     
     custom_xml = get_windsock_xml()
@@ -52,7 +53,7 @@ def run_gust_wind_demo(gui: bool = False, record: bool = False, steps: int = 350
     
     env = WindWrapper(base_env, wind_config=wind_cfg)
     obs, info = env.reset()
-    ctrl = PIDControl(base_env)
+    ctrl = PIDControl(base_env, mode="compliant" if soft_pid else "stiff")
     target_pos = np.array([0.0, 0.0, 1.0])
     
     print(f"[*] Cường độ gió giật cực đại: {gust_intensity:.4f} N")
@@ -124,5 +125,6 @@ if __name__ == "__main__":
         record=args.record,
         steps=args.steps,
         gust_intensity=args.gust_intensity,
+        soft_pid=args.soft_pid,
         camera=args.camera
     )

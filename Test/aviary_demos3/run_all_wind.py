@@ -58,11 +58,18 @@ def main():
         default=250,
         help="Số bước mô phỏng cho mỗi kịch bản (mặc định: 250 bước)",
     )
+    parser.add_argument(
+        "--soft-pid",
+        action="store_true",
+        help="Sử dụng bộ điều khiển PID mềm (compliant) để drone dễ lung lay tự nhiên theo gió",
+    )
     args = parser.parse_args()
+
+    import inspect
 
     if args.model == "compare":
         mod = import_module("06_compare_wind_vs_nowind")
-        mod.run_comparison_demo(gui=args.gui, record=args.record, steps=args.steps)
+        mod.run_comparison_demo(gui=args.gui, record=args.record, steps=args.steps, soft_pid=args.soft_pid)
         return
 
     selected = list(WIND_MAP.keys()) if args.model == "all" else [args.model]
@@ -70,7 +77,7 @@ def main():
     print("\n" + "#" * 80)
     print(" BẮT ĐẦU CHƯƠNG TRÌNH KIỂM TRA WINDWRAPPER (NHIỄU LOẠN KHÍ ĐỘNG HỌC & GIÓ)")
     print(f" Danh sách kịch bản ({len(selected)}): {[WIND_MAP[k][2] for k in selected]}")
-    print(f" Chế độ: GUI={args.gui} | Ghi GIF={args.record} | Số bước={args.steps}")
+    print(f" Chế độ: GUI={args.gui} | Ghi GIF={args.record} | Số bước={args.steps} | Soft PID={args.soft_pid}")
     print("#" * 80 + "\n")
 
     for key in selected:
@@ -79,11 +86,15 @@ def main():
         try:
             mod = import_module(mod_name)
             run_func = getattr(mod, func_name)
-            run_func(
-                gui=args.gui,
-                record=args.record,
-                steps=args.steps
-            )
+            kwargs = {
+                "gui": args.gui,
+                "record": args.record,
+                "steps": args.steps,
+            }
+            sig = inspect.signature(run_func)
+            if "soft_pid" in sig.parameters:
+                kwargs["soft_pid"] = args.soft_pid
+            run_func(**kwargs)
         except Exception as e:
             print(f"[LỖI KHI CHẠY {display_name}]: {e}")
             import traceback
@@ -93,7 +104,7 @@ def main():
         print("\n>>> [CHẠY BỔ SUNG BÀI ĐỐI CHUẨN BENCHMARK] <<<")
         try:
             mod_comp = import_module("06_compare_wind_vs_nowind")
-            mod_comp.run_comparison_demo(gui=args.gui, record=args.record, steps=args.steps)
+            mod_comp.run_comparison_demo(gui=args.gui, record=args.record, steps=args.steps, soft_pid=args.soft_pid)
         except Exception as e:
             print(f"[LỖI KHI CHẠY BENCHMARK]: {e}")
 

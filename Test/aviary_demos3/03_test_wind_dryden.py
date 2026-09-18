@@ -27,19 +27,20 @@ from multi_drone_mujoco.control.pid_control import PIDControl
 from controller_utils3 import rpm_to_normalized_action, save_gif, get_windsock_xml, parse_wind_args
 
 
-def run_dryden_wind_demo(gui: bool = False, record: bool = False, steps: int = 350, turbulence: float = 1.2, camera: str = "track"):
+def run_dryden_wind_demo(gui: bool = False, record: bool = False, steps: int = 350, turbulence: float = 1.8, camera: str = "track", soft_pid: bool = False):
     render_mode = "human" if gui else ("rgb_array" if record else None)
     
     print("=" * 85)
     print(f" KIỂM TRA WINDWRAPPER: MÔ HÌNH NHIỄU LOẠN KHÍ QUYỂN DRYDEN (TURBULENCE = {turbulence:.2f})")
+    print(f" Chế độ điều khiển PID: {'MỀM / DỄ LUNG LAY (Compliant)' if soft_pid else 'CỨNG / BÁM CHẶT (Stiff)'}")
     print("=" * 85)
     
     wind_cfg = WindConfig(
         model=WindModel.DRYDEN,
         turbulence_intensity=turbulence,
         altitude=1.0,
-        airspeed=0.8,
-        drag_coefficient=0.001
+        airspeed=1.0,
+        drag_coefficient=0.006
     )
     
     custom_xml = get_windsock_xml()
@@ -53,7 +54,7 @@ def run_dryden_wind_demo(gui: bool = False, record: bool = False, steps: int = 3
     
     env = WindWrapper(base_env, wind_config=wind_cfg)
     obs, info = env.reset()
-    ctrl = PIDControl(base_env)
+    ctrl = PIDControl(base_env, mode="compliant" if soft_pid else "stiff")
     target_pos = np.array([0.0, 0.0, 1.0])
     
     print(f"[*] Cường độ nhiễu loạn khí quyển: {turbulence:.2f} (Thang đo Dryden MIL-F-8785C)")
@@ -117,5 +118,6 @@ if __name__ == "__main__":
         record=args.record,
         steps=args.steps,
         turbulence=args.turbulence,
-        camera=args.camera
+        camera=args.camera,
+        soft_pid=args.soft_pid
     )

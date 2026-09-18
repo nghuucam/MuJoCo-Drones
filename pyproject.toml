@@ -3,9 +3,9 @@ requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "mj-drones-gym"
+name = "gym-mujoco-drones"
 version = "1.0.0"
-description = "MuJoCo-based multi-drone Gymnasium environments for single and multi-agent RL"
+description = "MuJoCo-based multi-drone Gymnasium environments for single and multi-agent RL & autonomous navigation"
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.8"
@@ -13,15 +13,32 @@ dependencies = [
     "gymnasium>=0.29.0",
     "mujoco>=3.0.0",
     "numpy>=1.21.0",
+    "scipy>=1.9.0",
 ]
 
 [project.optional-dependencies]
-rl = ["stable-baselines3>=2.0.0"]
-marl = ["pettingzoo>=1.24.0"]
-viz = ["matplotlib>=3.5.0"]
-gpu = ["jax[cuda12]", "mujoco-mjx>=3.0.0"]
+rl = [
+    "stable-baselines3>=2.0.0",
+    "tensorboard>=2.10.0",
+    "rich>=12.0.0",
+    "tqdm>=4.60.0",
+]
+marl = [
+    "pettingzoo>=1.24.0",
+]
+viz = [
+    "matplotlib>=3.5.0",
+    "Pillow>=9.0.0",
+]
+gpu = [
+    "jax[cuda12]",
+    "mujoco-mjx>=3.0.0",
+]
 all = [
     "stable-baselines3>=2.0.0",
+    "tensorboard>=2.10.0",
+    "rich>=12.0.0",
+    "tqdm>=4.60.0",
     "pettingzoo>=1.24.0",
     "matplotlib>=3.5.0",
     "Pillow>=9.0.0",
@@ -37,3 +54,4 @@ include = ["multi_drone_mujoco*"]
 
 [tool.pytest.ini_options]
 testpaths = ["multi_drone_mujoco/tests"]
+

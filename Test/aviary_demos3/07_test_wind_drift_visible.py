@@ -31,14 +31,14 @@ from multi_drone_mujoco.control.pid_control import PIDControl
 from controller_utils3 import rpm_to_normalized_action, save_gif, get_windsock_xml
 
 
-def run_visible_drift_demo(gui: bool = False, record: bool = False, steps: int = 300, mode: str = "resist", camera: str = "track"):
+def run_visible_drift_demo(gui: bool = True, record: bool = False, steps: int = 300, mode: str = "resist", camera: str = "track"):
     render_mode = "human" if gui else ("rgb_array" if record else None)
     
     print("=" * 85)
     print(f" KIỂM TRA TRỰC QUAN LỰC GIÓ: CHẾ ĐỘ [{mode.upper()}] (VISIBLE WIND EXPERIMENT)")
     print("=" * 85)
     
-    STRONG_WIND_SPEED = 6.0  # 6 m/s gió bão rất mạnh
+    STRONG_WIND_SPEED = 3.0  # 6 m/s gió bão rất mạnh
     wind_vector = np.array([STRONG_WIND_SPEED, 0.0, 0.0])
     
     # Cấu hình gió mạnh có hệ số cản 0.005 tạo lực ~0.08 N (>30% trọng lượng drone)
@@ -74,14 +74,15 @@ def run_visible_drift_demo(gui: bool = False, record: bool = False, steps: int =
     frames = []
     start_time = time.time()
     wind_started = False
+    onset_step = min(70, max(15, steps // 3))
     
     for step in range(steps):
         # Giai đoạn 1: Tắt gió tạm thời bằng cách đặt constant_wind = 0
-        if step < 70:
+        if step < onset_step:
             env.wind_config.constant_wind = np.zeros(3)
         else:
             if not wind_started:
-                print("\n  >>> [BÃO GIÓ ÙA VÀO!] Gió 6.0 m/s bắt đầu thổi mạnh dọc theo trục X! <<<\n")
+                print(f"\n  >>> [BÃO GIÓ ÙA VÀO!] Gió {STRONG_WIND_SPEED:.1f} m/s bắt đầu thổi mạnh dọc theo trục X! <<<\n")
                 wind_started = True
             env.wind_config.constant_wind = wind_vector
             
@@ -123,8 +124,8 @@ def run_visible_drift_demo(gui: bool = False, record: bool = False, steps: int =
         x_pos = base_env.pos[0, 0]
         
         if step % 25 == 0 or step == steps - 1:
-            phase_name = "LẶNG GIÓ (0 m/s)" if step < 70 else "BÃO GIÓ (6 m/s)"
-            status_desc = "Đứng yên ở tâm" if step < 70 else ("Nghiêng gồng bù gió" if mode == "resist" else "Bị gió thổi bay")
+            phase_name = "LẶNG GIÓ (0 m/s)" if step < onset_step else f"BÃO GIÓ ({STRONG_WIND_SPEED:.1f} m/s)"
+            status_desc = "Đứng yên ở tâm" if step < onset_step else ("Nghiêng gồng bù gió" if mode == "resist" else "Bị gió thổi bay")
             print(f"{step:<6} | {phase_name:<20} | {x_pos:<+16.3f} | {pitch_deg:<+24.2f}° | {status_desc}")
             
         if terminated or truncated:
