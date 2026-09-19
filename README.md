@@ -20,7 +20,7 @@ High-fidelity quadcopter simulation with GPU-vectorized environments, Dryden win
 ## Installation
 
 ```bash
-git clone <this-repo>
+git clone https://github.com/nghuucam/MuJoCo-Drones.git
 cd multi_drone_mujoco/
 pip install -e .          # core
 pip install -e ".[all]"   # with RL, MARL, and visualization extras
