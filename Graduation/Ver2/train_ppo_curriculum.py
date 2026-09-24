@@ -4,7 +4,6 @@ import time
 import argparse
 import numpy as np
 from collections import deque
-import multiprocessing as mp
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 root_dir = os.path.abspath(os.path.join(current_dir, "..", ".."))
@@ -15,13 +14,13 @@ for path in [current_dir, root_dir]:
 
 from drone_ppo_curriculum_env import DronePPOCurriculumEnv
 from stable_baselines3 import PPO
-from stable_baselines3.common.vec_env import SubprocVecEnv, VecMonitor
+from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.callbacks import BaseCallback, CheckpointCallback
 import config
 
 
-class GlobalCurriculumCallback(BaseCallback):
-    """Callback theo dõi Success Rate toàn cục để chuyển cấp Curriculum cho tất cả các worker CPU."""
+class SingleEnvCurriculumCallback(BaseCallback):
+    """Callback theo dõi Success Rate và chuyển cấp Curriculum cho 1 môi trường đơn."""
 
     def __init__(
         self,
@@ -40,13 +39,11 @@ class GlobalCurriculumCallback(BaseCallback):
         self.current_level = start_level
 
         self.episode_outcomes = deque(maxlen=window_size)
-        self.advance_streak = 0
 
     def _on_step(self) -> bool:
         # Ghi chỉ số Level hiện tại vào TensorBoard
         self.logger.record("curriculum/level", float(self.current_level))
 
-        # Lấy thông tin từ các infos trả về của vec_env
         for info in self.locals.get("infos", []):
             if "is_success" in info and ("terminal_observation" in info or info.get("collision") or info.get("win") or info.get("step_count", 0) >= config.MAX_STEPS):
                 is_succ = float(info.get("is_success", False))
@@ -65,38 +62,25 @@ class GlobalCurriculumCallback(BaseCallback):
             if self.current_level < self.num_levels - 1:
                 self.current_level += 1
                 self.episode_outcomes.clear()
-                self._update_env_levels()
+                self.training_env.envs[0].env.set_level(self.current_level)
                 if self.verbose > 0:
                     print(f"\n🎉 [CURRICULUM UP] Success Rate đạt {success_rate * 100:.1f}% >= 80%!")
-                    print(f"🚀 TỰ ĐỘNG CHUYỂN SANG CURRICULUM LEVEL {self.current_level} cho tất cả các CPU!\n")
+                    print(f"🚀 TỰ ĐỘNG CHUYỂN SANG CURRICULUM LEVEL {self.current_level}!\n")
 
         elif success_rate <= self.threshold_retreat:
             if self.current_level > 0:
                 self.current_level -= 1
                 self.episode_outcomes.clear()
-                self._update_env_levels()
+                self.training_env.envs[0].env.set_level(self.current_level)
                 if self.verbose > 0:
                     print(f"\n⚠️ [CURRICULUM DOWN] Success Rate tụt xuống {success_rate * 100:.1f}% <= 20%!")
                     print(f"📉 HẠ BỚT ĐỘ KHÓ VỀ LEVEL {self.current_level} để drone học lại nền tảng!\n")
 
-    def _update_env_levels(self):
-        # Đồng bộ level mới xuống tất cả các môi trường song song trong SubprocVecEnv
-        self.training_env.env_method("set_level", self.current_level)
-
-
-def make_env(rank: int, seed: int = 0):
-    def _init():
-        env = DronePPOCurriculumEnv(gui=False)
-        env.reset(seed=seed + rank)
-        return env
-    return _init
-
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Huấn luyện song song PPO cho Drone với Curriculum Learning & Cột trụ Gai (Ver2)")
-    parser.add_argument("--num-cpu", type=int, default=4, help="Số lượng CPU workers chạy song song (Mặc định: 4)")
-    parser.add_argument("--timesteps", type=int, default=200000, help="Tổng số bước huấn luyện PPO (Mặc định: 500,000)")
-    parser.add_argument("--save-freq", type=int, default=10000, help="Chu kỳ lưu checkpoint (Mặc định: 20,000 bước)")
+    parser = argparse.ArgumentParser(description="Huấn luyện PPO đơn tiến trình cho Drone với Curriculum Learning & Cột gai (Ver2)")
+    parser.add_argument("--timesteps", type=int, default=500000, help="Tổng số bước huấn luyện PPO (Mặc định: 500,000)")
+    parser.add_argument("--save-freq", type=int, default=20000, help="Chu kỳ lưu checkpoint (Mặc định: 20,000 bước)")
     parser.add_argument("--batch-size", type=int, default=64, help="Batch size PPO (Mặc định: 64)")
     parser.add_argument("--lr", type=float, default=3e-4, help="Learning rate (Mặc định: 3e-4)")
     return parser.parse_args()
@@ -111,22 +95,18 @@ def main():
     os.makedirs(logs_dir, exist_ok=True)
 
     print("=" * 85)
-    print("🌵 HUẤN LUYỆN SONG SONG PPO CURRICULUM + CỘT TRỤ GAI XƯƠNG RỒNG (GRADUATION / VER2)")
+    print("🌵 HUẤN LUYỆN ĐƠN TIẾN TRÌNH PPO CURRICULUM + CỘT TRỤ GAI XƯƠNG RỒNG (GRADUATION / VER2)")
     print("=" * 85)
-    print(f"💻 Số lượng CPU Workers: {args.num_cpu}")
     print(f"🎯 Tổng số bước huấn luyện: {args.timesteps:,}")
     print(f"📈 Tham số Curriculum: Window=20 | Advance=0.8 (80%) | Retreat=0.2 (20%) | Levels=0..3")
     print(f"🛡️ Margin va chạm gai (Collision Margin): {config.COLLISION_MARGIN}m")
     print("-" * 85)
 
-    print(f"⏳ Đang khởi tạo {args.num_cpu} tiến trình môi trường MuJoCo Ver2...")
-    env_fns = [make_env(rank=i, seed=42) for i in range(args.num_cpu)]
-    vec_env = SubprocVecEnv(env_fns)
-    vec_env = VecMonitor(vec_env, filename=os.path.join(logs_dir, "monitor_ver2.csv"))
-    print("✅ Đã khởi tạo thành công tất cả các CPU workers!")
+    print("⏳ Đang khởi tạo môi trường MuJoCo Ver2...")
+    raw_env = DronePPOCurriculumEnv(gui=False)
+    env = Monitor(raw_env, filename=os.path.join(logs_dir, "single_monitor_ver2.csv"))
 
-    # 1. Khởi tạo Callback Curriculum toàn cục
-    curriculum_cb = GlobalCurriculumCallback(
+    curriculum_cb = SingleEnvCurriculumCallback(
         window_size=20,
         threshold_advance=0.8,
         threshold_retreat=0.2,
@@ -135,17 +115,15 @@ def main():
         verbose=1
     )
 
-    # 2. Callback checkpoint tự động
     checkpoint_cb = CheckpointCallback(
-        save_freq=max(1, args.save_freq // args.num_cpu),
+        save_freq=args.save_freq,
         save_path=models_dir,
-        name_prefix=f"drone_ppo_curriculum_{args.num_cpu}cpu"
+        name_prefix="drone_ppo_single_curriculum"
     )
 
-    # 3. Khởi tạo PPO CnnPolicy với target_kl chống nổ gradient
     model = PPO(
         policy="CnnPolicy",
-        env=vec_env,
+        env=env,
         learning_rate=args.lr,
         n_steps=128,
         batch_size=args.batch_size,
@@ -159,7 +137,7 @@ def main():
         tensorboard_log=logs_dir
     )
 
-    print("\n🏁 BẮT ĐẦU HUẤN LUYỆN CURRICULUM (Nhấn Ctrl+C để dừng an toàn bất kỳ lúc nào)...")
+    print("\n🏁 BẮT ĐẦU HUẤN LUYỆN ĐƠN TIẾN TRÌNH (Nhấn Ctrl+C để dừng an toàn bất kỳ lúc nào)...")
     print("=" * 85)
 
     start_t = time.time()
@@ -168,23 +146,22 @@ def main():
             total_timesteps=args.timesteps,
             callback=[curriculum_cb, checkpoint_cb]
         )
-        final_path = os.path.join(models_dir, "drone_ppo_curriculum_final.zip")
+        final_path = os.path.join(models_dir, "drone_ppo_single_curriculum_final.zip")
         model.save(final_path)
         elapsed = time.time() - start_t
         print("\n" + "=" * 85)
-        print(f"🎉 HUẤN LUYỆN VER2 HOÀN TẤT THÀNH CÔNG sau {elapsed / 60:.2f} phút!")
+        print(f"🎉 HUẤN LUYỆN HOÀN TẤT THÀNH CÔNG sau {elapsed / 60:.2f} phút!")
         print(f"💾 Model đã được lưu tại: {final_path}")
         print("=" * 85)
     except KeyboardInterrupt:
         print("\n🛑 Phát hiện Ctrl+C! Đang lưu checkpoint khẩn cấp...")
-        interrupted_path = os.path.join(models_dir, "drone_ppo_curriculum_interrupted.zip")
+        interrupted_path = os.path.join(models_dir, "drone_ppo_single_curriculum_interrupted.zip")
         model.save(interrupted_path)
         print(f"💾 Đã lưu model an toàn tại: {interrupted_path}")
     finally:
-        vec_env.close()
-        print("🧹 Đã đóng tất cả các tiến trình con!")
+        env.close()
+        print("🧹 Đã đóng môi trường an toàn!")
 
 
 if __name__ == "__main__":
-    mp.freeze_support()
     main()

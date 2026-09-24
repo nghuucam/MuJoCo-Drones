@@ -80,6 +80,7 @@ class DronePPOCurriculumEnv(BaseAviary):
         self.collision = False
         self.win = False
         self.over_map = False
+        self.cleared_obstacles = set()
 
         self.accumulated_substep_reward = 0.0
         self.total_accumulated_reward = 0.0
@@ -134,6 +135,7 @@ class DronePPOCurriculumEnv(BaseAviary):
         self.collision = False
         self.win = False
         self.over_map = False
+        self.cleared_obstacles = set()
         self.accumulated_substep_reward = 0.0
         self.total_accumulated_reward = 0.0
 
@@ -237,21 +239,60 @@ class DronePPOCurriculumEnv(BaseAviary):
         return obs, float(substep_accum_reward), terminated, truncated, info
 
     def _computeSubstepReward(self):
-        """Hàm tính điểm thưởng cải tiến cho Ver2 (Phạt sát gai + Thưởng tiến bộ + Phạt thời gian)."""
+        """Hàm tính điểm thưởng 7 thành phần tinh chỉnh toàn diện cho Ver2:
+        1. R_progress: Thưởng tiến độ hướng đích (+5.0 * progress).
+        2. R_milestone: Thưởng lách gai cột mốc (+15.0 chỉ 1 lần duy nhất khi vượt qua cột ở cự ly an toàn 0.1 - 0.6m).
+        3. R_heading: Phạt bay ngược hướng đích (-0.05 * |cos(theta)| mỗi substep nếu cos(theta) < -0.2).
+        4. R_idle: Phạt lười di chuyển có điều kiện (-0.02 mỗi substep nếu đường trống > 1.5m và tốc độ < 0.1m/s).
+        5. R_proximity: Cảnh báo tiệm cận rủi ro sát gai (-0.02 mỗi substep nếu khoảng cách < 0.1m).
+        6. R_time: Chi phí thời gian (-0.01 mỗi substep).
+        7. R_terminal: Thưởng chạm đích (+500.0) / Phạt va chạm, văng map (-200.0).
+        """
         cur_p = self.pos[0]
         cur_dist_goal = np.linalg.norm(cur_p - self.goal[0])
         progress = self.previous_dist - cur_dist_goal
         self.previous_dist = cur_dist_goal
 
-        # 1. Thưởng tiến về phía đích + Phạt thời gian bước
-        r = 3.5 * progress - 0.01
+        # 1. Thưởng tiến độ hướng đích & 6. Chi phí thời gian
+        r = 5.0 * progress - 0.01
 
-        # 2. Phạt nguy hiểm khi tiến gần cột trụ và các gai nhọn (khoảng cách < 1.5m)
+        # 2. Thưởng LÁCH GAI CỘT MỐC (1 Lần DUY NHẤT / Cột)
+        for i, obs in enumerate(self.obstacle_data):
+            if i not in self.cleared_obstacles:
+                ox, oy, h_total, spikes = obs
+                # Drone bay từ Y lớn về Y nhỏ, khi Y_drone <= Y_obs là đã vượt qua mặt phẳng của cột
+                if cur_p[1] <= oy:
+                    self.cleared_obstacles.add(i)
+                    d_obs = self._get_distance_to_obstacle(i)
+                    if 0.1 <= d_obs <= 0.6:
+                        r += 15.0
+
+        # Khoảng cách ngắn nhất tới tất cả vật cản
         min_obstacle_dist = self._get_min_obstacle_distance()
-        if min_obstacle_dist < 1.5:
-            r -= 0.08 * (1.5 - min_obstacle_dist) / 1.5
 
-        # 3. Kiểm tra va chạm & sự kiện
+        # 3. Phạt BAY NGƯỢC HƯỚNG ĐÍCH / LƯỢN VÒNG (Heading Penalty)
+        # Chỉ phạt khi drone thực sự bay giật lùi (cos_theta < -0.2). Bay né ngang (cos ~ 0) KHÔNG bị phạt!
+        cur_v = self.vel[0]
+        vec_to_goal = self.goal[0] - cur_p
+        speed = float(np.linalg.norm(cur_v))
+        dist_goal = float(cur_dist_goal)
+
+        if speed > 0.05 and dist_goal > 1e-4:
+            cos_theta = float(np.dot(cur_v, vec_to_goal) / (speed * dist_goal))
+            if cos_theta < -0.2:
+                r -= 0.05 * abs(cos_theta)
+
+        # 4. Phạt LỜI DI CHUYỂN CÓ ĐIỀU KIỆN (Conditional Idle Penalty)
+        # Chỉ phạt khi đường trước mặt trống trải (> 1.5m) mà đứng lỳ tại chỗ (speed < 0.1m/s)
+        # Khi đang ở gần gai (<= 1.5m), tha bổng không phạt để drone quan sát, lách an toàn
+        if min_obstacle_dist > 1.5 and speed < 0.1:
+            r -= 0.02
+
+        # 5. Cảnh báo vùng rủi ro tiệm cận sát gai (< 0.1m)
+        if min_obstacle_dist < 0.1:
+            r -= 0.02
+
+        # 7. Kiểm tra va chạm & sự kiện kết thúc episode
         self.collision = self.check_collision()
         self.win = self.check_win()
         self.over_map = self.check_overmap()
@@ -315,36 +356,39 @@ class DronePPOCurriculumEnv(BaseAviary):
             "collision": bool(self.collision),
             "win": bool(self.win),
             "curriculum_level": int(self.current_level),
+            "cleared_obstacles": int(len(self.cleared_obstacles)),
             "accumulated_reward": float(self.accumulated_substep_reward),
             "total_reward": float(self.total_accumulated_reward)
         }
 
-    def _get_min_obstacle_distance(self):
-        """Tính khoảng cách ngắn nhất từ drone đến bề mặt cột trụ VÀ bề mặt các gai xương rồng."""
+    def _get_distance_to_obstacle(self, obs_idx: int) -> float:
+        """Tính khoảng cách ngắn nhất từ drone đến bề mặt cột trụ và các gai của cột trụ thứ obs_idx."""
         drone_p = self.pos[0]
-        min_d = 999.0
+        ox, oy, h_total, spikes = self.obstacle_data[obs_idx]
+        d_center = math.hypot(drone_p[0] - ox, drone_p[1] - oy)
+        d_surf = max(0.0, d_center - config.CYLINDER_RADIUS)
+        if drone_p[2] > h_total:
+            dz = drone_p[2] - h_total
+            obs_d = math.hypot(d_surf, dz)
+        else:
+            obs_d = d_surf
 
-        for obs in self.obstacle_data:
-            ox, oy, h_total, spikes = obs
-            # 1. Khoảng cách đến thân cột trụ chính
-            if drone_p[2] <= h_total:
-                d_center = math.hypot(drone_p[0] - ox, drone_p[1] - oy)
-                d_surf = max(0.0, d_center - config.CYLINDER_RADIUS)
-                if d_surf < min_d:
-                    min_d = d_surf
+        for (sp_x, sp_y, sp_z, sp_len, sp_rad) in spikes:
+            tip_x = ox + sp_x
+            tip_y = oy + sp_y
+            tip_z = sp_z
+            dist_tip = np.linalg.norm(drone_p - np.array([tip_x, tip_y, tip_z]))
+            dist_spike_surf = max(0.0, dist_tip - sp_rad)
+            if dist_spike_surf < obs_d:
+                obs_d = dist_spike_surf
 
-            # 2. Khoảng cách đến đầu ngọn của từng gai xương rồng
-            for (sp_x, sp_y, sp_z, sp_len, sp_rad) in spikes:
-                # Vị trí ngọn gai trong thế giới
-                tip_x = ox + sp_x
-                tip_y = oy + sp_y
-                tip_z = sp_z
-                dist_tip = np.linalg.norm(drone_p - np.array([tip_x, tip_y, tip_z]))
-                dist_spike_surf = max(0.0, dist_tip - sp_rad)
-                if dist_spike_surf < min_d:
-                    min_d = dist_spike_surf
+        return float(obs_d)
 
-        return min_d
+    def _get_min_obstacle_distance(self) -> float:
+        """Tính khoảng cách ngắn nhất từ drone đến tất cả cột trụ VÀ bề mặt các gai xương rồng."""
+        if not self.obstacle_data:
+            return 999.0
+        return float(min(self._get_distance_to_obstacle(i) for i in range(len(self.obstacle_data))))
 
     def _get_fpv_image(self):
         """Trích xuất ảnh quan sát FPV (64x64 RGB) từ camera gắn trên mũi drone."""
