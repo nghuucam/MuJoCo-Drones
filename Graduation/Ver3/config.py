@@ -46,8 +46,9 @@ OBSTACLE_POSITIONS = [
 
 # 4. Thông số Cột trụ & Gai xương rồng (Cactus Obstacles & Spikes)
 CYLINDER_RADIUS = 0.5            # Bán kính thân cột chính (m)
-MIN_OBSTACLE_HEIGHT = 1.0        # Chiều cao tối thiểu cột trụ (m)
-MAX_OBSTACLE_HEIGHT = 3.0        # Chiều cao tối đa cột trụ (m)
+FIXED_OBSTACLE_HEIGHT = 3.0      # Chiều cao vật cản cố định cho tất cả các level (m) - Không biến thiên ngẫu nhiên
+MIN_OBSTACLE_HEIGHT = 3.0        # (Tương thích ngược)
+MAX_OBSTACLE_HEIGHT = 3.0        # (Tương thích ngược)
 
 # Gai xương rồng (Spikes)
 SPIKES_PER_PILLAR_MIN = 3        # Số gai tối thiểu ngẫu nhiên mỗi cột
@@ -74,9 +75,15 @@ MAX_Z = 2.5                      # Độ cao tối đa
 # 6. Hệ số va chạm mới (Collision Margin)
 COLLISION_MARGIN = 0.05          # Giảm xuống 0.05m (5cm) giúp drone lách mượt quanh các gai nhọn
 
-# 7. Kích thước ảnh camera FPV
+# 7. Kích thước ảnh & Cấu hình Camera FPV
 IMG_WIDTH = 64
 IMG_HEIGHT = 64
+CAMERA_FOVY = 75.0               # Góc mở camera FPV (độ). Ảnh 64x64 nên góc ngang = góc dọc = 75 độ
+CAMERA_HALF_FOV = 37.5           # Nửa góc mở = 37.5 độ (Biên tối đa camera nhìn thấy mỗi bên)
+
+# Khống chế góc bay (alpha, beta) nằm gọn bên trong vùng nhìn thấy của camera
+MAX_ALPHA_DEG = 35.0             # Góc lái ngang alpha in [-35 deg, +35 deg] (nằm trong tầm nhìn 37.5 deg)
+MAX_BETA_DEG = 30.0              # Góc nâng/chúc beta in [-30 deg, +30 deg] (nằm trong tầm nhìn 37.5 deg)
 
 # 8. Cấu hình Camera 3D GUI khi hiển thị trực tiếp (GUI Viewer Camera)
 GUI_CAMERA_TRACKING = True     # True: Tự động khóa camera đi theo Drone (Tracking mode)
@@ -86,3 +93,7 @@ GUI_CAMERA_ELEVATION = -20.0   # Góc ngẩng/chúc nhìn từ trên xuống (đ
 GUI_CAMERA_AZIMUTH = -90.0     # Góc xoay ngang (-90 là nhìn từ sau lưng Drone thẳng về hướng đích)
 GUI_SHOW_RIGHT_UI = False      # False: Ẩn thanh công cụ bên phải (Joint, Control, Equality) để màn hình rộng rãi
 GUI_SHOW_LEFT_UI = False       # False: Ẩn thanh thông số bên trái
+
+# 9. Cấu hình Cửa sổ hiển thị kép (Dual Window: MuJoCo 3D + Drone POV FPV)
+GUI_SHOW_POV_WINDOW = True     # True: Mở thêm cửa sổ thứ 2 hiển thị trực tiếp camera POV (FPV) từ mũi Drone
+GUI_POV_WINDOW_SIZE = 256      # Kích thước cửa sổ POV (pixels, ví dụ: 256x256 hoặc 320x320)

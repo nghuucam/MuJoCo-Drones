@@ -64,10 +64,17 @@ class DronePPOCurriculumEnv(BaseAviary):
             low=-1.0, high=1.0, shape=(3,), dtype=np.float32
         )
 
-        # Không gian quan sát ảnh camera FPV RGB (64 x 64 x 3)
-        self.observation_space = spaces.Box(
-            low=0, high=255, shape=(config.IMG_HEIGHT, config.IMG_WIDTH, 3), dtype=np.uint8
-        )
+        # Không gian quan sát Đa phương thức (Multi-Modal Dict Observation cho Ver3):
+        # 1. 'rgb': Ảnh camera FPV RGB (64 x 64 x 3)
+        # 2. 'state': Vector trạng thái toàn diện 18 chiều (Pos, Vel, RPY, Goal, Rel_Goal, Dist, APF_Hints)
+        self.observation_space = spaces.Dict({
+            "rgb": spaces.Box(
+                low=0, high=255, shape=(config.IMG_HEIGHT, config.IMG_WIDTH, 3), dtype=np.uint8
+            ),
+            "state": spaces.Box(
+                low=-50.0, high=50.0, shape=(18,), dtype=np.float32
+            )
+        })
 
         # Bộ điều khiển PID tầng thấp (DSLPIDControl)
         self.control = DSLPIDControl(env=self)
@@ -98,6 +105,11 @@ class DronePPOCurriculumEnv(BaseAviary):
         self.saved_cam_distance = getattr(config, "GUI_CAMERA_DISTANCE", 3.5)
         self.saved_cam_lookat = np.array([0.0, 11.0, 1.0], dtype=float)
         self.has_user_camera = False
+
+        # Quản lý Cửa sổ thứ 2 hiển thị Camera POV (FPV)
+        self._fpv_window = None
+        self._fpv_label = None
+        self._fpv_img_tk = None
 
     def set_level(self, level: int):
         """Cập nhật cấp độ Curriculum (Level 0 đến 3)."""
@@ -130,6 +142,14 @@ class DronePPOCurriculumEnv(BaseAviary):
         # Nạp lại mô hình MuJoCo linh hoạt từ chuỗi XML vừa sinh
         self.model = mujoco.MjModel.from_xml_string(xml_str)
         self.data = mujoco.MjData(self.model)
+
+        # Giải phóng renderer camera cũ để tái tạo trên model mới
+        if hasattr(self, "_cam_renderer") and self._cam_renderer is not None:
+            try:
+                self._cam_renderer.close()
+            except Exception:
+                pass
+            self._cam_renderer = None
 
         # Thiết lập lại vị trí xuất phát ban đầu trong MuJoCo Data
         self.INIT_XYZS = np.array([start_pos])
@@ -183,13 +203,13 @@ class DronePPOCurriculumEnv(BaseAviary):
         self.x_min_limit = float(min(min_obs_x - config.OVERMAP_X_MARGIN, start_pos[0] - 0.5, self.goal[0][0] - 0.5))
         self.x_max_limit = float(max(max_obs_x + config.OVERMAP_X_MARGIN, start_pos[0] + 0.5, self.goal[0][0] + 0.5))
 
-        # Lấy ảnh FPV đầu tiên
-        fpv_obs = self._get_fpv_image()
+        # Lấy quan sát đa phương thức ban đầu (ảnh FPV + tọa độ đích)
+        obs = self._get_obs()
         info["curriculum_level"] = self.current_level
         info["is_success"] = False
         info["success"] = False
 
-        return fpv_obs, info
+        return obs, info
 
     def step(self, action):
         """Thực hiện 1 bước hành động cấp cao PPO (xuất góc cầu alpha, beta và khoảng cách d theo hệ Aviation Body Frame)."""
@@ -198,10 +218,11 @@ class DronePPOCurriculumEnv(BaseAviary):
         norm_b = float(np.clip(action[1], -1.0, 1.0))
         norm_d = float(np.clip(action[2], -1.0, 1.0))
 
-        # Góc lái alpha in [-90 deg, +90 deg]: âm là Rẽ Trái, dương là Rẽ Phải, 0 là Bay Thẳng
-        alpha_deg = float(norm_a * 90.0)
-        # Góc nâng beta in [-30 deg, +30 deg]: âm là Chúc Xuống (Z giảm), dương là Ngẩng Lên (Z tăng), 0 là Bay Ngang
-        beta_deg = float(norm_b * 30.0)
+        # Góc lái alpha và góc nâng/chúc beta nằm gọn trong tầm nhìn camera:
+        max_alpha = float(getattr(config, "MAX_ALPHA_DEG", 35.0))
+        max_beta = float(getattr(config, "MAX_BETA_DEG", 30.0))
+        alpha_deg = float(norm_a * max_alpha)
+        beta_deg = float(norm_b * max_beta)
         # Khoảng cách bước d in [0.2m, 1.5m]
         d = float(0.2 + (norm_d + 1.0) * 0.65)
 
@@ -284,13 +305,13 @@ class DronePPOCurriculumEnv(BaseAviary):
         # 7. Cập nhật đếm bước và thông số trả về
         self.step_count += 1
 
-        obs = self._get_fpv_image()
+        obs = self._get_obs()
         terminated = self._computeTerminated()
         truncated = self._computeTruncated()
 
-        # Phạt Timeout răn đe (-200.0) nếu hết 80 bước mà không chạm đích (triệt tiêu bẫy bay lượn vòng câu giờ)
+        # Phạt Timeout răn đe (-50.0) nếu hết 80 bước mà không chạm đích (triệt tiêu bẫy bay lượn vòng câu giờ)
         if truncated and not self.win:
-            substep_accum_reward -= 200.0
+            substep_accum_reward -= 50.0
 
         self.accumulated_substep_reward = substep_accum_reward
         self.total_accumulated_reward += substep_accum_reward
@@ -300,31 +321,31 @@ class DronePPOCurriculumEnv(BaseAviary):
         return obs, float(substep_accum_reward), terminated, truncated, info
 
     def _computeSubstepReward(self):
-        """Hàm tính điểm thưởng 7 thành phần tinh chỉnh toàn diện cho Ver2:
-        1. R_progress: Thưởng tiến độ hướng đích (+5.0 * progress).
-        2. R_milestone: Thưởng lách gai cột mốc (+15.0 chỉ 1 lần duy nhất khi vượt qua cột ở cự ly an toàn 0.1 - 0.6m).
-        3. R_heading: Phạt bay ngược hướng đích (-0.05 * |cos(theta)| mỗi substep nếu cos(theta) < -0.2).
-        4. R_idle: Phạt lười di chuyển có điều kiện (-0.02 mỗi substep nếu đường trống > 1.5m và tốc độ < 0.1m/s).
-        5. R_proximity: Cảnh báo tiệm cận rủi ro sát gai (-0.02 mỗi substep nếu khoảng cách < 0.1m).
-        6. R_time: Chi phí thời gian (-0.01 mỗi substep).
-        7. R_terminal: Thưởng chạm đích (+500.0) / Phạt va chạm, văng map (-200.0).
+        """Hàm tính điểm thưởng 7 thành phần chuẩn hóa tối ưu cho Ver3:
+        1. R_progress: Thưởng tiến độ hướng đích (+1.0 * progress).
+        2. R_milestone: Thưởng lách gai cột mốc (+5.0 chỉ 1 lần duy nhất khi vượt qua cột ở cự ly an toàn 0.1 - 0.6m).
+        3. R_heading: Phạt bay ngược hướng đích (-0.01 * |cos(theta)| mỗi substep nếu cos(theta) < -0.2).
+        4. R_idle: Phạt lười di chuyển có điều kiện (-0.005 mỗi substep nếu đường trống > 1.5m và tốc độ < 0.1m/s).
+        5. R_proximity: Cảnh báo tiệm cận rủi ro sát gai (-0.005 mỗi substep nếu khoảng cách < 0.1m).
+        6. R_time: Chi phí thời gian (-0.002 mỗi substep).
+        7. R_terminal: Thưởng chạm đích (+100.0) / Phạt va chạm, văng map (-50.0).
         """
         cur_p = self.pos[0]
         cur_dist_goal = float(np.linalg.norm(cur_p - self.goal[0]))
 
         # 1. Thưởng tiến độ kỷ lục & Phạt thụt lùi răn đe (Phương án 2A: High-Water Mark)
-        # Chi phí thời gian cơ bản mỗi substep (-0.01)
-        r = -0.01
+        # Chi phí thời gian cơ bản mỗi substep (-0.002)
+        r = -0.002
 
         if cur_dist_goal < self.best_dist_to_goal:
-            # Phá kỷ lục khoảng cách gần đích nhất trong episode -> Thưởng tiến độ (+5.0 * progress)
+            # Phá kỷ lục khoảng cách gần đích nhất trong episode -> Thưởng tiến độ (+1.0 * progress)
             progress = self.best_dist_to_goal - cur_dist_goal
             self.best_dist_to_goal = cur_dist_goal
-            r += 5.0 * progress
+            r += 1.0 * progress
         elif cur_dist_goal > self.previous_dist:
-            # Đang bay thụt lùi xa đích hơn -> PHẠT NẶNG RĂN ĐE GẤP 3 LẦN THƯỞNG (-15.0 * regress)
+            # Đang bay thụt lùi xa đích hơn -> PHẠT NẶNG RĂN ĐE GẤP 3 LẦN THƯỞNG (-3.0 * regress)
             regress = cur_dist_goal - self.previous_dist
-            r -= 15.0 * regress
+            r -= 3.0 * regress
 
         self.previous_dist = cur_dist_goal
 
@@ -337,7 +358,7 @@ class DronePPOCurriculumEnv(BaseAviary):
                     self.cleared_obstacles.add(i)
                     d_obs = self._get_distance_to_obstacle(i)
                     if 0.1 <= d_obs <= 0.6:
-                        r += 15.0
+                        r += 5.0
 
         # Khoảng cách ngắn nhất tới tất cả vật cản
         min_obstacle_dist = self._get_min_obstacle_distance()
@@ -352,17 +373,17 @@ class DronePPOCurriculumEnv(BaseAviary):
         if speed > 0.05 and dist_goal > 1e-4:
             cos_theta = float(np.dot(cur_v, vec_to_goal) / (speed * dist_goal))
             if cos_theta < -0.2:
-                r -= 0.05 * abs(cos_theta)
+                r -= 0.01 * abs(cos_theta)
 
         # 4. Phạt LỜI DI CHUYỂN CÓ ĐIỀU KIỆN (Conditional Idle Penalty)
         # Chỉ phạt khi đường trước mặt trống trải (> 1.5m) mà đứng lỳ tại chỗ (speed < 0.1m/s)
         # Khi đang ở gần gai (<= 1.5m), tha bổng không phạt để drone quan sát, lách an toàn
         if min_obstacle_dist > 1.5 and speed < 0.1:
-            r -= 0.02
+            r -= 0.005
 
         # 5. Cảnh báo vùng rủi ro tiệm cận sát gai (< 0.1m)
         if min_obstacle_dist < 0.1:
-            r -= 0.02
+            r -= 0.005
 
         # 7. Kiểm tra va chạm & sự kiện kết thúc episode
         self.collision = self.check_collision()
@@ -370,11 +391,11 @@ class DronePPOCurriculumEnv(BaseAviary):
         self.over_map = self.check_overmap()
 
         if self.collision:
-            r -= 200.0
+            r -= 50.0
         if self.over_map and not self.win:
-            r -= 200.0
+            r -= 50.0
         if self.win:
-            r += 500.0
+            r += 100.0
 
         return r
 
@@ -481,21 +502,141 @@ class DronePPOCurriculumEnv(BaseAviary):
             return 999.0
         return float(min(self._get_distance_to_obstacle(i) for i in range(len(self.obstacle_data))))
 
+    def _compute_apf_hint(self):
+        """
+        Tính toán gợi ý hành động an toàn dựa trên Trường thế nhân tạo (APF - Artificial Potential Field):
+        1. Hướng mục tiêu (Attractive): Kéo Drone thẳng về vị trí Đích trên mặt phẳng ngang XY.
+        2. Né hành lang va chạm (Anticipatory Corridor Deflection): Phát hiện cột cản trên đường đi và bẻ lái né trước.
+        3. Phản xạ lực đẩy khẩn cấp sát bề mặt (Emergency Surface Repulsion): Đẩy lùi dạt ra xa nếu cự ly tới cột hoặc gai < 0.6m.
+        4. Chuyển đổi sang hệ quy chiếu thân Drone (Body Frame) đồng bộ hoàn hảo với không gian hành động [-1.0, 1.0]:
+           - alpha_safe_hint: Gợi ý góc lái [-1.0, 1.0] (tương ứng [-90 deg, +90 deg])
+           - beta_safe_hint: Gợi ý góc ngẩng/chúc [-1.0, 1.0] (tương ứng [-30 deg, +30 deg])
+        """
+        cur_p = self.pos[0]
+        cur_rpy = self.rpy[0]
+        goal_p = self.goal[0]
+
+        # 1. Hướng mục tiêu tới đích trên mặt phẳng XY
+        v_goal = (goal_p - cur_p)[:2]
+        d_goal = float(np.linalg.norm(v_goal))
+        if d_goal < 1e-4:
+            return 0.0, 0.0
+        u_goal = v_goal / d_goal
+
+        # 2. Bẻ lái né trước hành lang va chạm (Anticipatory Corridor Deflection)
+        r_corridor = config.CYLINDER_RADIUS + 0.35  # Bán kính hành lang an toàn quanh trục cột (0.5 + 0.35 = 0.85m)
+        max_deflect_angle = 0.0
+        best_deflect_dir = 0.0
+
+        for ox, oy, h_total, spikes in self.obstacle_data:
+            v_obs = np.array([ox, oy]) - cur_p[:2]
+            proj = float(np.dot(v_obs, u_goal))
+
+            # Chỉ xét các cột nằm phía trước trên đường tới đích (từ 0.15m đến 3.5m)
+            if 0.15 < proj < min(d_goal, 3.5):
+                lat_vec = v_obs - proj * u_goal
+                lat_dist = float(np.linalg.norm(lat_vec))
+
+                if lat_dist < r_corridor:
+                    needed_clearance = r_corridor - lat_dist
+                    deflect_angle = math.atan2(needed_clearance, proj)
+
+                    # Bẻ lái dạt ra xa cột (dựa trên tích có hướng 2D: u_goal x v_obs)
+                    cross = u_goal[0] * v_obs[1] - u_goal[1] * v_obs[0]
+                    if abs(cross) < 1e-3:
+                        steer_side = -1.0 if cur_p[0] > 0 else 1.0
+                    else:
+                        steer_side = -1.0 if cross > 0 else 1.0
+
+                    if deflect_angle > max_deflect_angle:
+                        max_deflect_angle = deflect_angle
+                        best_deflect_dir = steer_side
+
+        base_yaw = math.atan2(u_goal[1], u_goal[0])
+        desired_yaw = base_yaw + best_deflect_dir * max_deflect_angle
+
+        # 3. Phản xạ lực đẩy khẩn cấp sát bề mặt (Emergency Surface Repulsion nếu cự ly < 0.6m)
+        f_rep_xy = np.zeros(2, dtype=np.float32)
+        for ox, oy, h_total, spikes in self.obstacle_data:
+            dx = cur_p[0] - ox
+            dy = cur_p[1] - oy
+            d_center = math.hypot(dx, dy)
+            d_surf = max(0.0, d_center - config.CYLINDER_RADIUS)
+            norm_rep = np.array([dx / (d_center + 1e-6), dy / (d_center + 1e-6)])
+
+            for (sp_x, sp_y, sp_z, sp_len, sp_rad) in spikes:
+                tip_pos = np.array([ox + sp_x, oy + sp_y, sp_z])
+                v_tip = cur_p - tip_pos
+                dist_tip = float(np.linalg.norm(v_tip))
+                d_sp = max(0.0, dist_tip - sp_rad)
+                if d_sp < d_surf:
+                    d_surf = d_sp
+                    norm_rep = v_tip[:2] / (dist_tip + 1e-6)
+
+            if d_surf < 0.6:
+                rep_mag = (0.6 - d_surf) / 0.6
+                f_rep_xy += rep_mag * norm_rep
+
+        if np.linalg.norm(f_rep_xy) > 1e-3:
+            v_des = np.array([math.cos(desired_yaw), math.sin(desired_yaw)]) + 1.2 * f_rep_xy
+            desired_yaw = math.atan2(v_des[1], v_des[0])
+
+        # 4. Chuyển đổi sang hệ thân Drone (Drone Body Frame)
+        cur_yaw = float(cur_rpy[2])
+        delta_yaw = (desired_yaw - cur_yaw + math.pi) % (2 * math.pi) - math.pi
+        max_alpha_rad = math.radians(float(getattr(config, "MAX_ALPHA_DEG", 35.0)))
+        alpha_safe_hint = float(np.clip(delta_yaw / max_alpha_rad, -1.0, 1.0))
+
+        dz = goal_p[2] - cur_p[2]
+        desired_pitch = math.atan2(dz, d_goal)
+        max_beta_rad = math.radians(float(getattr(config, "MAX_BETA_DEG", 30.0)))
+        beta_safe_hint = float(np.clip(desired_pitch / max_beta_rad, -1.0, 1.0))
+
+        return alpha_safe_hint, beta_safe_hint
+
+    def _get_obs(self):
+        """Tạo không gian quan sát đa phương thức gồm ảnh FPV và toàn bộ vector trạng thái động học + đích + APF hints."""
+        fpv_img = self._get_fpv_image()
+        cur_p = self.pos[0]
+        cur_v = self.vel[0]
+        cur_rpy = self.rpy[0]
+        g_p = self.goal[0]
+        rel_vec = g_p - cur_p
+        dist = float(np.linalg.norm(rel_vec))
+        alpha_hint, beta_hint = self._compute_apf_hint()
+
+        state_vec = np.array([
+            float(cur_p[0]), float(cur_p[1]), float(cur_p[2]),          # 1. Vị trí Drone [X, Y, Z] (3)
+            float(cur_v[0]), float(cur_v[1]), float(cur_v[2]),          # 2. Vận tốc bay [vx, vy, vz] (3)
+            float(cur_rpy[0]), float(cur_rpy[1]), float(cur_rpy[2]),    # 3. Góc nghiêng [Roll, Pitch, Yaw] (3)
+            float(g_p[0]), float(g_p[1]), float(g_p[2]),                # 4. Vị trí Đích [X_g, Y_g, Z_g] (3)
+            float(rel_vec[0]), float(rel_vec[1]), float(rel_vec[2]),    # 5. Hướng lệch đích [dX, dY, dZ] (3)
+            dist,                                                        # 6. Khoảng cách tới đích (1)
+            alpha_hint,                                                  # 7. Gợi ý APF góc lái né an toàn [-1, 1] (1)
+            beta_hint                                                    # 8. Gợi ý APF góc nâng/chúc an toàn [-1, 1] (1)
+        ], dtype=np.float32)
+
+        return {
+            "rgb": fpv_img,
+            "state": state_vec
+        }
+
     def _get_fpv_image(self):
         """Trích xuất ảnh quan sát FPV (64x64 RGB) từ camera gắn trên mũi drone."""
         rgb_img = self._get_drone_camera_image(drone_idx=0, camera_name="drone0_cam")
         return rgb_img
 
     def _get_drone_camera_image(self, drone_idx=0, camera_name="drone0_cam"):
-        """Render ảnh camera offscreen thông qua MuJoCo Renderer."""
+        """Render ảnh camera offscreen thông qua MuJoCo Renderer (tái sử dụng bộ đệm renderer)."""
         cam_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_CAMERA, camera_name)
         if cam_id == -1:
             return np.zeros((config.IMG_HEIGHT, config.IMG_WIDTH, 3), dtype=np.uint8)
 
-        renderer = mujoco.Renderer(self.model, height=config.IMG_HEIGHT, width=config.IMG_WIDTH)
-        renderer.update_scene(self.data, camera=cam_id)
-        rgb = renderer.render()
-        renderer.close()
+        if not hasattr(self, "_cam_renderer") or self._cam_renderer is None:
+            self._cam_renderer = mujoco.Renderer(self.model, height=config.IMG_HEIGHT, width=config.IMG_WIDTH)
+
+        self._cam_renderer.update_scene(self.data, camera=cam_id)
+        rgb = self._cam_renderer.render()
         return rgb
 
     def _generate_cactus_xml(self, start_pos, goal_pos, level):
@@ -505,11 +646,11 @@ class DronePPOCurriculumEnv(BaseAviary):
 
         obstacle_bodies_xml = ""
 
-        # Sinh XML cho các cột trụ được kích hoạt theo level
+        # Sinh XML cho các cột trụ được kích hoạt theo level (Độ cao cố định theo FIXED_OBSTACLE_HEIGHT)
         for i in range(num_obstacles):
             base_pos = config.OBSTACLE_POSITIONS[i]
             ox, oy = base_pos[0], base_pos[1]
-            h_total = float(np.random.uniform(config.MIN_OBSTACLE_HEIGHT, config.MAX_OBSTACLE_HEIGHT))
+            h_total = float(getattr(config, "FIXED_OBSTACLE_HEIGHT", 3.0))
             h_half = h_total / 2.0
 
             # Sinh số gai ngẫu nhiên từ 3 đến 6 cho cột này
@@ -609,7 +750,7 @@ class DronePPOCurriculumEnv(BaseAviary):
       <site name="drone0_prop1" pos="-0.028 0.028 0" group="5"/>
       <site name="drone0_prop2" pos="-0.028 -0.028 0" group="5"/>
       <site name="drone0_prop3" pos="0.028 -0.028 0" group="5"/>
-      <camera name="drone0_cam" pos="0.03 0 0.01" xyaxes="0 -1 0 0 0 1" fovy="75"/>
+      <camera name="drone0_cam" pos="0.03 0 0.01" xyaxes="0 -1 0 0 0 1" fovy="{getattr(config, 'CAMERA_FOVY', 75.0)}"/>
     </body>"""
 
         sensors_xml = """
@@ -687,8 +828,12 @@ class DronePPOCurriculumEnv(BaseAviary):
             self.has_user_camera = True
 
     def render(self, camera_mode=None, track_drone_id=0):
-        """Render giao diện 3D với khả năng ghi nhớ góc nhìn và tracking Drone."""
+        """Render giao diện 3D với 2 cửa sổ song song:
+        1. Cửa sổ MuJoCo 3D Viewer: Góc nhìn thứ 3 toàn cảnh (Overview / Tracking).
+        2. Cửa sổ Tkinter FPV Window: Góc nhìn thứ nhất (POV trực tiếp từ mũi Drone).
+        """
         if self.gui_mode or self.render_mode == "human":
+            # 1. Cửa sổ 1: MuJoCo 3D Viewer (Góc nhìn thứ 3)
             if self._viewer is None:
                 show_r = getattr(config, "GUI_SHOW_RIGHT_UI", False)
                 show_l = getattr(config, "GUI_SHOW_LEFT_UI", False)
@@ -699,6 +844,75 @@ class DronePPOCurriculumEnv(BaseAviary):
 
             self._viewer.sync()
             self._capture_camera_settings()
+
+            # 2. Cửa sổ 2: Drone POV (FPV Camera)
+            if getattr(config, "GUI_SHOW_POV_WINDOW", True):
+                self._render_fpv_window()
+
         elif self.render_mode == "rgb_array":
             return super().render(camera_mode=camera_mode, track_drone_id=track_drone_id)
+
+    def _render_fpv_window(self):
+        """Hiển thị góc nhìn POV (Camera FPV mũi Drone) trên cửa sổ riêng biệt bằng Tkinter."""
+        try:
+            import tkinter as tk
+            from PIL import Image, ImageTk
+
+            fpv_img = self._get_fpv_image()
+            win_size = getattr(config, "GUI_POV_WINDOW_SIZE", 256)
+
+            if self._fpv_window is None:
+                self._fpv_window = tk.Tk()
+                self._fpv_window.title("Drone POV (Góc nhìn FPV mũi Drone)")
+                self._fpv_window.geometry(f"{win_size}x{win_size}+50+50")
+                self._fpv_window.resizable(False, False)
+
+                self._fpv_label = tk.Label(self._fpv_window, bg="black")
+                self._fpv_label.pack(fill="both", expand=True)
+
+                def on_close():
+                    if self._fpv_window is not None:
+                        try:
+                            self._fpv_window.destroy()
+                        except Exception:
+                            pass
+                        self._fpv_window = None
+
+                self._fpv_window.protocol("WM_DELETE_WINDOW", on_close)
+
+            if self._fpv_window is not None and self._fpv_label is not None:
+                img_pil = Image.fromarray(fpv_img).resize((win_size, win_size), Image.Resampling.NEAREST)
+                self._fpv_img_tk = ImageTk.PhotoImage(img_pil)
+                self._fpv_label.config(image=self._fpv_img_tk)
+
+                self._fpv_window.update_idletasks()
+                self._fpv_window.update()
+
+        except Exception:
+            self._fpv_window = None
+
+    def close(self):
+        """Đóng môi trường và giải phóng an toàn cả 2 cửa sổ."""
+        if hasattr(self, "_fpv_window") and self._fpv_window is not None:
+            try:
+                self._fpv_window.destroy()
+            except Exception:
+                pass
+            self._fpv_window = None
+
+        if hasattr(self, "_viewer") and self._viewer is not None:
+            try:
+                self._viewer.close()
+            except Exception:
+                pass
+            self._viewer = None
+
+        if hasattr(self, "_cam_renderer") and self._cam_renderer is not None:
+            try:
+                self._cam_renderer.close()
+            except Exception:
+                pass
+            self._cam_renderer = None
+
+        super().close()
 

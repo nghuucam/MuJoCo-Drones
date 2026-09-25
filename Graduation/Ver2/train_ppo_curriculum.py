@@ -17,6 +17,7 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.callbacks import BaseCallback, CheckpointCallback
 import config
+from flight_logger_callback import FlightLoggerCallback
 
 
 class SingleEnvCurriculumCallback(BaseCallback):
@@ -83,6 +84,7 @@ def parse_args():
     parser.add_argument("--save-freq", type=int, default=20000, help="Chu kỳ lưu checkpoint (Mặc định: 20,000 bước)")
     parser.add_argument("--batch-size", type=int, default=64, help="Batch size PPO (Mặc định: 64)")
     parser.add_argument("--lr", type=float, default=3e-4, help="Learning rate (Mặc định: 3e-4)")
+    parser.add_argument("--gui", action="store_true", help="Bật cửa sổ đồ họa 3D MuJoCo GUI trực tiếp khi train")
     return parser.parse_args()
 
 
@@ -98,12 +100,13 @@ def main():
     print("🌵 HUẤN LUYỆN ĐƠN TIẾN TRÌNH PPO CURRICULUM + CỘT TRỤ GAI XƯƠNG RỒNG (GRADUATION / VER2)")
     print("=" * 85)
     print(f"🎯 Tổng số bước huấn luyện: {args.timesteps:,}")
+    print(f"🖥️ Chế độ GUI 3D: {'BẬT (Hiển thị)' if args.gui else 'TẮT (Chạy ngầm headless)'}")
     print(f"📈 Tham số Curriculum: Window=20 | Advance=0.8 (80%) | Retreat=0.2 (20%) | Levels=0..3")
     print(f"🛡️ Margin va chạm gai (Collision Margin): {config.COLLISION_MARGIN}m")
     print("-" * 85)
 
     print("⏳ Đang khởi tạo môi trường MuJoCo Ver2...")
-    raw_env = DronePPOCurriculumEnv(gui=False)
+    raw_env = DronePPOCurriculumEnv(gui=args.gui)
     env = Monitor(raw_env, filename=os.path.join(logs_dir, "single_monitor_ver2.csv"))
 
     curriculum_cb = SingleEnvCurriculumCallback(
@@ -120,6 +123,13 @@ def main():
         save_path=models_dir,
         name_prefix="drone_ppo_single_curriculum"
     )
+
+    flight_log_path = os.path.join(logs_dir, "drone_flight_log_ver2.csv")
+    flight_logger_cb = FlightLoggerCallback(
+        log_path=flight_log_path,
+        verbose=1
+    )
+    print(f"📊 Nhật ký bay chi tiết (Excel CSV): {flight_log_path}")
 
     model = PPO(
         policy="CnnPolicy",
@@ -144,7 +154,7 @@ def main():
     try:
         model.learn(
             total_timesteps=args.timesteps,
-            callback=[curriculum_cb, checkpoint_cb]
+            callback=[curriculum_cb, checkpoint_cb, flight_logger_cb]
         )
         final_path = os.path.join(models_dir, "drone_ppo_single_curriculum_final.zip")
         model.save(final_path)

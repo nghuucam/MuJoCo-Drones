@@ -112,7 +112,7 @@ def main():
     os.makedirs(logs_dir, exist_ok=True)
 
     print("=" * 85)
-    print("🌵 HUẤN LUYỆN SONG SONG PPO CURRICULUM + CỘT TRỤ GAI XƯƠNG RỒNG (GRADUATION / VER2)")
+    print("🌵 HUẤN LUYỆN SONG SONG PPO CURRICULUM + ẢNH FPV & TỌA ĐỘ ĐÍCH (GRADUATION / VER3)")
     print("=" * 85)
     print(f"💻 Số lượng CPU Workers: {args.num_cpu}")
     print(f"🎯 Tổng số bước huấn luyện: {args.timesteps:,}")
@@ -120,10 +120,10 @@ def main():
     print(f"🛡️ Margin va chạm gai (Collision Margin): {config.COLLISION_MARGIN}m")
     print("-" * 85)
 
-    print(f"⏳ Đang khởi tạo {args.num_cpu} tiến trình môi trường MuJoCo Ver2...")
+    print(f"⏳ Đang khởi tạo {args.num_cpu} tiến trình môi trường MuJoCo Ver3...")
     env_fns = [make_env(rank=i, seed=42) for i in range(args.num_cpu)]
     vec_env = SubprocVecEnv(env_fns)
-    vec_env = VecMonitor(vec_env, filename=os.path.join(logs_dir, "monitor_ver2.csv"))
+    vec_env = VecMonitor(vec_env, filename=os.path.join(logs_dir, "monitor_ver3.csv"))
     print("✅ Đã khởi tạo thành công tất cả các CPU workers!")
 
     # 1. Khởi tạo Callback Curriculum toàn cục
@@ -140,20 +140,20 @@ def main():
     checkpoint_cb = CheckpointCallback(
         save_freq=max(1, args.save_freq // args.num_cpu),
         save_path=models_dir,
-        name_prefix=f"drone_ppo_curriculum_{args.num_cpu}cpu"
+        name_prefix=f"drone_ppo_curriculum_{args.num_cpu}cpu_ver3"
     )
 
     # 3. Callback ghi nhật ký bay chi tiết ra file CSV (Excel-compatible)
-    flight_log_path = os.path.join(logs_dir, "drone_flight_log_parallel_ver2.csv")
+    flight_log_path = os.path.join(logs_dir, "drone_flight_log_parallel_ver3.csv")
     flight_logger_cb = FlightLoggerCallback(
         log_path=flight_log_path,
         verbose=1
     )
     print(f"📊 Nhật ký bay chi tiết (Excel CSV): {flight_log_path}")
 
-    # 4. Khởi tạo PPO CnnPolicy với target_kl chống nổ gradient
+    # 4. Khởi tạo PPO MultiInputPolicy với target_kl chống nổ gradient
     model = PPO(
-        policy="CnnPolicy",
+        policy="MultiInputPolicy",
         env=vec_env,
         learning_rate=args.lr,
         n_steps=128,
@@ -168,7 +168,7 @@ def main():
         tensorboard_log=logs_dir
     )
 
-    print("\n🏁 BẮT ĐẦU HUẤN LUYỆN CURRICULUM (Nhấn Ctrl+C để dừng an toàn bất kỳ lúc nào)...")
+    print("\n🏁 BẮT ĐẦU HUẤN LUYỆN CURRICULUM VER3 (Nhấn Ctrl+C để dừng an toàn bất kỳ lúc nào)...")
     print("=" * 85)
 
     start_t = time.time()
@@ -177,16 +177,16 @@ def main():
             total_timesteps=args.timesteps,
             callback=[curriculum_cb, checkpoint_cb, flight_logger_cb]
         )
-        final_path = os.path.join(models_dir, "drone_ppo_curriculum_final.zip")
+        final_path = os.path.join(models_dir, "drone_ppo_curriculum_ver3_final.zip")
         model.save(final_path)
         elapsed = time.time() - start_t
         print("\n" + "=" * 85)
-        print(f"🎉 HUẤN LUYỆN VER2 HOÀN TẤT THÀNH CÔNG sau {elapsed / 60:.2f} phút!")
+        print(f"🎉 HUẤN LUYỆN VER3 HOÀN TẤT THÀNH CÔNG sau {elapsed / 60:.2f} phút!")
         print(f"💾 Model đã được lưu tại: {final_path}")
         print("=" * 85)
     except KeyboardInterrupt:
         print("\n🛑 Phát hiện Ctrl+C! Đang lưu checkpoint khẩn cấp...")
-        interrupted_path = os.path.join(models_dir, "drone_ppo_curriculum_interrupted.zip")
+        interrupted_path = os.path.join(models_dir, "drone_ppo_curriculum_ver3_interrupted.zip")
         model.save(interrupted_path)
         print(f"💾 Đã lưu model an toàn tại: {interrupted_path}")
     finally:
