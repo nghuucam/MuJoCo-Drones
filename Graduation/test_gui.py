@@ -7,19 +7,21 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 if current_dir not in sys.path:
     sys.path.insert(0, current_dir)
 
+import config
 from drone_ppo_curriculum_env import DronePPOCurriculumEnv
 
 
 def main():
     print("=" * 80)
-    print("🌵 VER2 TEST GUI: KIỂM TRA MÔI TRƯỜNG CỘT TRỤ GAI XƯƠNG RỒNG & CURRICULUM")
+    print("🌵 TEST GUI: KIỂM TRA MÔI TRƯỜNG CỘT TRỤ GAI XƯƠNG RỒNG & CURRICULUM (LEVEL 0..6)")
     print("=" * 80)
     print("🎮 Đang mở giao diện 3D MuJoCo...")
 
     env = DronePPOCurriculumEnv(gui=True)
 
-    # Chạy thử lần lượt từ Level 0 đến Level 3
-    for level in range(4):
+    num_levels = len(config.GOAL_Y_RANGES)
+    # Chạy thử lần lượt từ Level 0 đến Level cao nhất
+    for level in range(num_levels):
         print(f"\n" + "=" * 60)
         print(f"🎯 ĐÃ THIẾT LẬP CURRICULUM LEVEL {level}")
         print("=" * 60)
@@ -43,7 +45,7 @@ def main():
                 print(f"🏁 Kết thúc Episode Level {level} ở bước {step + 1}! (Win: {info['win']}, Collision: {info['collision']})")
                 break
 
-        if level < 3:
+        if level < num_levels - 1:
             input("\n⏸️ Nhấn phím [ENTER] để tiếp tục sang Level tiếp theo...")
 
     print("\n🎉 Hoàn tất xem thử giao diện 3D!")

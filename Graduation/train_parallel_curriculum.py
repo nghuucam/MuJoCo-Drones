@@ -7,9 +7,10 @@ from collections import deque
 import multiprocessing as mp
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
-root_dir = os.path.abspath(os.path.join(current_dir, "..", ".."))
+parent_dir = os.path.abspath(os.path.join(current_dir, ".."))
+workspace_root = os.path.abspath(os.path.join(current_dir, "..", ".."))
 
-for path in [current_dir, root_dir]:
+for path in [current_dir, parent_dir, workspace_root]:
     if path not in sys.path:
         sys.path.insert(0, path)
 
@@ -26,10 +27,10 @@ class GlobalCurriculumCallback(BaseCallback):
 
     def __init__(
         self,
-        window_size: int = 20,
+        window_size: int = 100,
         threshold_advance: float = 0.8,
         threshold_retreat: float = 0.2,
-        num_levels: int = 4,
+        num_levels: int = len(config.GOAL_Y_RANGES),
         start_level: int = 0,
         verbose: int = 1
     ):
@@ -116,7 +117,7 @@ def main():
     print("=" * 85)
     print(f"💻 Số lượng CPU Workers: {args.num_cpu}")
     print(f"🎯 Tổng số bước huấn luyện: {args.timesteps:,}")
-    print(f"📈 Tham số Curriculum: Window=20 | Advance=0.8 (80%) | Retreat=0.2 (20%) | Levels=0..3")
+    print(f"📈 Tham số Curriculum: Window=100 | Advance=0.8 (80%) | Retreat=0.2 (20%) | Levels=0..{len(config.GOAL_Y_RANGES) - 1}")
     print(f"🛡️ Margin va chạm gai (Collision Margin): {config.COLLISION_MARGIN}m")
     print(f"🎯 Bán kính đích (Goal Threshold): {config.GOAL_THRESHOLD}m")
     print("-" * 85)
@@ -129,10 +130,10 @@ def main():
 
     # 1. Khởi tạo Callback Curriculum toàn cục
     curriculum_cb = GlobalCurriculumCallback(
-        window_size=20,
+        window_size=100,
         threshold_advance=0.8,
         threshold_retreat=0.2,
-        num_levels=4,
+        num_levels=len(config.GOAL_Y_RANGES),
         start_level=0,
         verbose=1
     )
@@ -153,18 +154,36 @@ def main():
     print(f"📊 Nhật ký bay chi tiết (Excel CSV): {flight_log_path}")
 
     # 4. Khởi tạo PPO MultiInputPolicy với target_kl chống nổ gradient
+    # Ver1
+    # model = PPO(
+    #     policy="MultiInputPolicy",
+    #     env=vec_env,
+    #     learning_rate=args.lr,
+    #     n_steps=128,
+    #     batch_size=args.batch_size,
+    #     n_epochs=10,
+    #     gamma=0.99,
+    #     gae_lambda=0.95,
+    #     clip_range=0.2,
+    #     target_kl=0.05,
+    #     ent_coef=0.01,
+    #     verbose=1,
+    #     tensorboard_log=logs_dir
+    # )
+
+    #Ver2
     model = PPO(
         policy="MultiInputPolicy",
         env=vec_env,
-        learning_rate=args.lr,
-        n_steps=128,
-        batch_size=args.batch_size,
+        learning_rate=1e-4,         
+        n_steps=512,                
+        batch_size=256,             
         n_epochs=10,
         gamma=0.99,
         gae_lambda=0.95,
         clip_range=0.2,
-        target_kl=0.05,
-        ent_coef=0.01,
+        target_kl=0.05,             
+        ent_coef=0.001,             
         verbose=1,
         tensorboard_log=logs_dir
     )

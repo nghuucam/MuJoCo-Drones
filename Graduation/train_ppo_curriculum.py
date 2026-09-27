@@ -6,9 +6,10 @@ import numpy as np
 from collections import deque
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
-root_dir = os.path.abspath(os.path.join(current_dir, "..", ".."))
+parent_dir = os.path.abspath(os.path.join(current_dir, ".."))
+workspace_root = os.path.abspath(os.path.join(current_dir, "..", ".."))
 
-for path in [current_dir, root_dir]:
+for path in [current_dir, parent_dir, workspace_root]:
     if path not in sys.path:
         sys.path.insert(0, path)
 

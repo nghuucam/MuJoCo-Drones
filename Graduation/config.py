@@ -8,31 +8,43 @@ start_space = [
     [3.0, 11.0], [4.0, 11.0], [-3.0, 11.0], [-4.0, 11.0]
 ]
 
-# 2. Vị trí Đích đến theo từng Cấp độ (Curriculum Goal Y Ranges)
-# - Level 0: Giữ nguyên như cũ: Y ~ [7.5, 8.5] (Quãng đường ~ 3m)
-# - Level 1: Tăng gấp đôi độ dài: Y ~ [-0.5, 0.5] (Quãng đường ~ 11m, gấp đôi 5.5m)
-# - Level 2: Tăng gấp đôi độ dài: Y ~ [-5.5, -4.5] (Quãng đường ~ 16m, gấp đôi 8.0m)
-# - Level 3: Tăng gấp đôi độ dài: Y ~ [-10.5, -9.5] (Quãng đường ~ 21m, gấp đôi 10.5m)
+# 2. Vị trí Đích đến theo từng Cấp độ (Curriculum Goal Y Ranges - 7 Levels: 0 đến 6)
+# - Level 0: Quãng đường ~ 3m (Y ~ [7.5, 8.5])
+# - Level 1: Quãng đường ~ 11m (Y ~ [-0.5, 0.5]) [Đệm Level 1]
+# - Level 2: Quãng đường ~ 11m (Y ~ [-0.5, 0.5]) [Level 1 cũ]
+# - Level 3: Quãng đường ~ 16m (Y ~ [-5.5, -4.5]) [Đệm Level 2 cũ]
+# - Level 4: Quãng đường ~ 16m (Y ~ [-5.5, -4.5]) [Level 2 cũ]
+# - Level 5: Quãng đường ~ 21m (Y ~ [-10.5, -9.5]) [Đệm Level 3 cũ]
+# - Level 6: Quãng đường ~ 21m (Y ~ [-10.5, -9.5]) [Level 3 cũ]
 GOAL_Y_RANGES = {
     0: (7.5, 8.5),
     1: (-0.5, 0.5),
-    2: (-5.5, -4.5),
-    3: (-10.5, -9.5),
+    2: (-0.5, 0.5),
+    3: (-5.5, -4.5),
+    4: (-5.5, -4.5),
+    5: (-10.5, -9.5),
+    6: (-10.5, -9.5),
 }
 
 # Bán kính vùng đích: Giảm từ 2.0m xuống 1.0m (đòi hỏi độ chính xác cao khi tiếp cận đích)
 GOAL_THRESHOLD = 1.0             # Bán kính vùng đích (m): Drone cách tâm đích < 1.0m là tính tới đích thành công
 
-# 3. Số lượng vật cản theo từng Cấp độ (Tăng gấp đôi từ Level 1 -> 3)
-# - Level 0: 0 cột trụ (Giữ nguyên như cũ, tập cất cánh & bay thẳng)
-# - Level 1: 6 cột trụ (Gấp đôi Ver3: 3 -> 6 cột)
-# - Level 2: 10 cột trụ (Gấp đôi Ver3: 5 -> 10 cột)
-# - Level 3: 14 cột trụ (Gấp đôi Ver3: 7 -> 14 cột)
+# 3. Số lượng vật cản theo từng Cấp độ (7 Levels: 0 đến 6)
+# - Level 0: 0 cột trụ (Tập cất cánh & bay thẳng trống trơn)
+# - Level 1: 3 cột trụ (Đệm cho quãng đường 11m)
+# - Level 2: 6 cột trụ (Level 1 cũ: 11m với 6 cột gai)
+# - Level 3: 8 cột trụ (Đệm cho quãng đường 16m)
+# - Level 4: 10 cột trụ (Level 2 cũ: 16m với 10 cột gai)
+# - Level 5: 12 cột trụ (Đệm cho quãng đường 21m)
+# - Level 6: 14 cột trụ (Level 3 cũ: 21m với 14 cột gai)
 OBSTACLE_COUNTS = {
     0: 0,
-    1: 6,
-    2: 10,
-    3: 14,
+    1: 3,
+    2: 6,
+    3: 8,
+    4: 10,
+    5: 12,
+    6: 14,
 }
 
 # Tọa độ 14 cột trụ trên bản đồ mở rộng Y (từ Y=11m xuống Y=-10m):

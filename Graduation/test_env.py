@@ -7,6 +7,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 if current_dir not in sys.path:
     sys.path.insert(0, current_dir)
 
+import config
 from drone_ppo_curriculum_env import DronePPOCurriculumEnv
 
 
@@ -21,8 +22,9 @@ def test_environment_api():
     check_env(env, warn=True)
     print("✅ Môi trường vượt qua bài kiểm tra SB3 check_env 100%!")
 
-    print("\n2. Kiểm tra chu trình Reset & Step ở tất cả 4 Level...")
-    for lvl in range(4):
+    num_levels = len(config.GOAL_Y_RANGES)
+    print(f"\n2. Kiểm tra chu trình Reset & Step ở tất cả {num_levels} Level (0..{num_levels - 1})...")
+    for lvl in range(num_levels):
         env.set_level(lvl)
         obs, info = env.reset()
         assert isinstance(obs, dict), f"Lỗi: obs phải là Dict, nhận được {type(obs)}"

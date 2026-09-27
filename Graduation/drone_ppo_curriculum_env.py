@@ -8,11 +8,13 @@ from gymnasium import spaces
 import mujoco
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.abspath(os.path.join(current_dir, ".."))
 root_dir = os.path.abspath(os.path.join(current_dir, "..", ".."))
-if root_dir not in sys.path:
-    sys.path.insert(0, root_dir)
+for p in [current_dir, parent_dir, root_dir]:
+    if p not in sys.path:
+        sys.path.insert(0, p)
 
-from multi_drone_mujoco.envs.base_aviary import BaseAviary
+from multi_drone_mujoco.envs.base_aviary import BaseAviary, CF2_MESH_DIR
 from multi_drone_mujoco.control.dsl_pid_control import DSLPIDControl
 from multi_drone_mujoco.utils.enums import DroneModel, Physics, ActionType, ObservationType
 import config
@@ -29,9 +31,10 @@ class DronePPOCurriculumEnv(BaseAviary):
     4. Không gian hành động: Khống chế góc lái alpha in [-35, +35] deg và beta in [-30, +30] deg nằm trọn trong camera FOV 75 deg.
     """
 
-    def __init__(self, gui: bool = False):
+    def __init__(self, gui: bool = False, show_marker: bool = True):
         self.gui_mode = gui
-        self.current_level = 0  # Level 0 đến Level 3
+        self.show_marker = show_marker
+        self.current_level = 0  # Level 0 đến Level 6
 
         # Đặt trước một mục tiêu tạm thời để khởi tạo XML ban đầu
         self.goal = np.array([[0.0, 7.5, 1.5]])
@@ -112,8 +115,9 @@ class DronePPOCurriculumEnv(BaseAviary):
         self._fpv_img_tk = None
 
     def set_level(self, level: int):
-        """Cập nhật cấp độ Curriculum (Level 0 đến 3)."""
-        self.current_level = int(np.clip(level, 0, 3))
+        """Cập nhật cấp độ Curriculum (Level 0 đến 6)."""
+        max_level = len(config.GOAL_Y_RANGES) - 1
+        self.current_level = int(np.clip(level, 0, max_level))
 
     def reset(self, seed=None, options=None):
         """Khởi tạo lại môi trường cho episode mới dựa trên level hiện tại."""
@@ -736,15 +740,40 @@ class DronePPOCurriculumEnv(BaseAviary):
     <geom name="boundary_line_back" type="box" pos="{mid_x:.3f} {y_max_limit:.3f} 0.006" size="{len_x / 2.0:.3f} {line_w} {line_h}" rgba="1 1 1 0.95" contype="0" conaffinity="0"/>
     <geom name="boundary_line_front" type="box" pos="{mid_x:.3f} {y_min_limit:.3f} 0.006" size="{len_x / 2.0:.3f} {line_w} {line_h}" rgba="1 1 1 0.95" contype="0" conaffinity="0"/>"""
 
-        # Trích xuất XML mô hình Drone CF2X
+        # Trích xuất XML mô hình Drone CF2X với đầy đủ 4 cánh quạt và khung thân 3D chính hãng
         drone_x, drone_y, drone_z = start_pos[0], start_pos[1], start_pos[2]
+        show_m = getattr(self, "show_marker", False)
+        marker_xml = ""
+        if show_m:
+            marker_xml = """
+      <geom name="drone0_arrow_stem" type="cylinder" pos="0 0 1.8" size="0.12 0.7" rgba="1 1 1 1" contype="0" conaffinity="0"/>
+      <geom name="drone0_arrow_pointer" type="sphere" pos="0 0 0.8" size="0.4" rgba="1 1 1 1" contype="0" conaffinity="0"/>"""
+
+        meshdir = str(CF2_MESH_DIR).replace("\\", "/")
+        visual_meshes = "\n".join(
+            f'    <mesh file="{meshdir}/cf2_{i}.obj" name="cf2_vis_{i}"/>'
+            for i in range(7)
+        )
+        cf2_materials = """    <material name="polished_plastic" rgba="0.631 0.659 0.678 1"/>
+    <material name="polished_gold" rgba="0.969 0.878 0.6 1"/>
+    <material name="medium_gloss_plastic" rgba="0.109 0.184 0.0 1"/>
+    <material name="propeller_plastic" rgba="0.792 0.820 0.933 1"/>
+    <material name="white" rgba="1 1 1 1"/>
+    <material name="body_frame_plastic" rgba="0.102 0.102 0.102 1"/>
+    <material name="burnished_chrome" rgba="0.898 0.898 0.898 1"/>"""
+
         drone_xml = f"""
     <body name="drone0" pos="{drone_x} {drone_y} {drone_z}" quat="0.707 0 0 -0.707">
       <freejoint name="drone0_joint"/>
       <inertial pos="0 0 0" mass="0.027" diaginertia="1.4e-5 1.4e-5 2.1e-5"/>
       <geom name="drone0_collision" type="cylinder" size="0.06 0.025" rgba="0 0 0 0" contype="1" conaffinity="1"/>
-      <geom name="drone0_arrow_stem" type="cylinder" pos="0 0 1.8" size="0.12 0.7" rgba="1 1 1 1" contype="0" conaffinity="0"/>
-      <geom name="drone0_arrow_pointer" type="sphere" pos="0 0 0.8" size="0.4" rgba="1 1 1 1" contype="0" conaffinity="0"/>
+      <geom mesh="cf2_vis_0" material="propeller_plastic" class="visual"/>
+      <geom mesh="cf2_vis_1" material="medium_gloss_plastic" class="visual"/>
+      <geom mesh="cf2_vis_2" material="polished_gold" class="visual"/>
+      <geom mesh="cf2_vis_3" material="polished_plastic" class="visual"/>
+      <geom mesh="cf2_vis_4" material="burnished_chrome" class="visual"/>
+      <geom mesh="cf2_vis_5" material="body_frame_plastic" class="visual"/>
+      <geom mesh="cf2_vis_6" material="white" class="visual"/>{marker_xml}
       <site name="drone0_center" pos="0 0 0" group="5"/>
       <site name="drone0_prop0" pos="0.028 0.028 0" group="5"/>
       <site name="drone0_prop1" pos="-0.028 0.028 0" group="5"/>
@@ -765,6 +794,14 @@ class DronePPOCurriculumEnv(BaseAviary):
   <option integrator="RK4" density="1.225" viscosity="1.8e-5" timestep="0.00416666"/>
   <compiler inertiafromgeom="false" autolimits="true"/>
 
+  <default>
+    <default class="cf2">
+      <default class="visual">
+        <geom group="2" type="mesh" contype="0" conaffinity="0"/>
+      </default>
+    </default>
+  </default>
+
   <visual>
     <headlight diffuse="0.7 0.7 0.7" ambient="0.4 0.4 0.4" specular="0 0 0"/>
     <rgba haze="0.15 0.25 0.35 1"/>
@@ -776,6 +813,8 @@ class DronePPOCurriculumEnv(BaseAviary):
     <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="512" height="3072"/>
     <texture type="2d" name="groundplane" builtin="checker" mark="edge" rgb1="0.2 0.3 0.4" rgb2="0.1 0.2 0.3" markrgb="0.8 0.8 0.8" width="300" height="300"/>
     <material name="groundplane" texture="groundplane" texuniform="true" texrepeat="5 5" reflectance="0.2"/>
+{cf2_materials}
+{visual_meshes}
   </asset>
 
   <worldbody>
