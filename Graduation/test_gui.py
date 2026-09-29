@@ -20,7 +20,6 @@ def main():
     env = DronePPOCurriculumEnv(gui=True)
 
     num_levels = len(config.GOAL_Y_RANGES)
-    # Chạy thử lần lượt từ Level 0 đến Level cao nhất
     for level in range(num_levels):
         print(f"\n" + "=" * 60)
         print(f"🎯 ĐÃ THIẾT LẬP CURRICULUM LEVEL {level}")
@@ -34,11 +33,9 @@ def main():
         input("\n⏸️ Nhấn phím [ENTER] trong terminal này để bắt đầu cho Drone bay...")
 
         for step in range(60):
-            # Chọn hành động bay tiến nhẹ về phía trước
             action = np.array([0.0, 0.0, 0.3], dtype=np.float32)
             obs, reward, terminated, truncated, info = env.step(action)
 
-            # Giảm tốc độ mô phỏng (0.15s mỗi bước) để mắt người dễ dàng quan sát
             time.sleep(0.15)
 
             if terminated or truncated:

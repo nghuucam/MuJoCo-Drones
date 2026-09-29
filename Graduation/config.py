@@ -1,21 +1,9 @@
-# ==============================================================================
-# CẤU HÌNH CHO MÔI TRƯỜNG DRONE PPO CURRICULUM (GRADUATION / VER4)
-# ==============================================================================
 
-# 1. Điểm xuất phát (Xung quanh Y = 11.0m, Z = 1.0m)
 start_space = [
     [0.0, 11.0], [1.0, 11.0], [2.0, 11.0], [-1.0, 11.0], [-2.0, 11.0],
     [3.0, 11.0], [4.0, 11.0], [-3.0, 11.0], [-4.0, 11.0]
 ]
 
-# 2. Vị trí Đích đến theo từng Cấp độ (Curriculum Goal Y Ranges - 7 Levels: 0 đến 6)
-# - Level 0: Quãng đường ~ 3m (Y ~ [7.5, 8.5])
-# - Level 1: Quãng đường ~ 11m (Y ~ [-0.5, 0.5]) [Đệm Level 1]
-# - Level 2: Quãng đường ~ 11m (Y ~ [-0.5, 0.5]) [Level 1 cũ]
-# - Level 3: Quãng đường ~ 16m (Y ~ [-5.5, -4.5]) [Đệm Level 2 cũ]
-# - Level 4: Quãng đường ~ 16m (Y ~ [-5.5, -4.5]) [Level 2 cũ]
-# - Level 5: Quãng đường ~ 21m (Y ~ [-10.5, -9.5]) [Đệm Level 3 cũ]
-# - Level 6: Quãng đường ~ 21m (Y ~ [-10.5, -9.5]) [Level 3 cũ]
 GOAL_Y_RANGES = {
     0: (7.5, 8.5),
     1: (-0.5, 0.5),
@@ -26,17 +14,8 @@ GOAL_Y_RANGES = {
     6: (-10.5, -9.5),
 }
 
-# Bán kính vùng đích: Giảm từ 2.0m xuống 1.0m (đòi hỏi độ chính xác cao khi tiếp cận đích)
-GOAL_THRESHOLD = 1.0             # Bán kính vùng đích (m): Drone cách tâm đích < 1.0m là tính tới đích thành công
+GOAL_THRESHOLD = 0.5
 
-# 3. Số lượng vật cản theo từng Cấp độ (7 Levels: 0 đến 6)
-# - Level 0: 0 cột trụ (Tập cất cánh & bay thẳng trống trơn)
-# - Level 1: 3 cột trụ (Đệm cho quãng đường 11m)
-# - Level 2: 6 cột trụ (Level 1 cũ: 11m với 6 cột gai)
-# - Level 3: 8 cột trụ (Đệm cho quãng đường 16m)
-# - Level 4: 10 cột trụ (Level 2 cũ: 16m với 10 cột gai)
-# - Level 5: 12 cột trụ (Đệm cho quãng đường 21m)
-# - Level 6: 14 cột trụ (Level 3 cũ: 21m với 14 cột gai)
 OBSTACLE_COUNTS = {
     0: 0,
     1: 3,
@@ -44,83 +23,70 @@ OBSTACLE_COUNTS = {
     3: 8,
     4: 10,
     5: 12,
-    6: 14,
+    6: 15,
 }
 
-# Tọa độ 14 cột trụ trên bản đồ mở rộng Y (từ Y=11m xuống Y=-10m):
 OBSTACLE_POSITIONS = [
-    # --- Level 1 (6 cột đầu tiên: trải dài từ Y = 7.5m xuống Y = 2.0m) ---
-    [-4.50, 7.50],   # Cột 1: Hàng 1 - Trái
-    [ 0.00, 7.00],   # Cột 2: Hàng 1 - Giữa
-    [ 4.50, 7.50],   # Cột 3: Hàng 1 - Phải
-    [-2.50, 4.00],   # Cột 4: Hàng 2 - So le trái
-    [ 2.50, 4.00],   # Cột 5: Hàng 2 - So le phải
-    [ 0.00, 2.00],   # Cột 6: Hàng 3 - Chặn trung tâm trước mốc đích Level 1
+    [-4.50, 7.50],
+    [ 0.00, 7.00],
+    [ 4.50, 7.50],
+    [-2.50, 4.00],
+    [ 2.50, 4.00],
+    [ 0.00, 2.00],
 
-    # --- Level 2 (Bổ sung thêm 4 cột = 10 cột: trải dài từ Y = 0.5m xuống Y = -2.5m) ---
-    [-4.00, 0.50],   # Cột 7: Sườn trái mốc Y = 0.5m
-    [ 4.00, 0.50],   # Cột 8: Sườn phải mốc Y = 0.5m
-    [-2.20, -2.50],  # Cột 9: So le trái trước mốc đích Level 2
-    [ 2.20, -2.50],  # Cột 10: So le phải trước mốc đích Level 2
+    [-4.00, 0.50],
+    [ 4.00, 0.50],
+    [-2.20, -2.50],
+    [ 2.20, -2.50],
 
-    # --- Level 3 (Bổ sung thêm 4 cột = 14 cột: trải dài từ Y = -5.0m xuống Y = -8.0m) ---
-    [-4.20, -5.00],  # Cột 11: Trái hàng 5
-    [ 0.00, -5.50],  # Cột 12: Giữa hàng 5
-    [ 4.20, -5.00],  # Cột 13: Phải hàng 5
-    [-2.00, -8.00],  # Cột 14: Chặn trung tâm trước mốc đích Level 3 (-10m)
+    [-4.20, -5.00],
+    [ 0.00, -5.50],
+    [ 4.20, -5.00],
+    [-2.00, -8.00],
+    [ 2.00, -8.00],
 ]
 
-# 4. Thông số Cột trụ & Gai xương rồng (Cactus Obstacles & Spikes)
-CYLINDER_RADIUS = 0.5            # Bán kính thân cột chính (m)
-FIXED_OBSTACLE_HEIGHT = 3.0      # Chiều cao vật cản cố định cho tất cả các level (m)
-MIN_OBSTACLE_HEIGHT = 3.0        # (Tương thích ngược)
-MAX_OBSTACLE_HEIGHT = 3.0        # (Tương thích ngược)
+CYLINDER_RADIUS = 0.5
+FIXED_OBSTACLE_HEIGHT = 3.0
+MIN_OBSTACLE_HEIGHT = 3.0
+MAX_OBSTACLE_HEIGHT = 3.0
 
-# Số lượng gai trên mỗi cột trụ: TĂNG GẤP ĐÔI (từ 3-6 lên 6-12 gai mỗi cột)
-SPIKES_PER_PILLAR_MIN = 6        # Số gai tối thiểu ngẫu nhiên mỗi cột (Gấp đôi: 3 -> 6)
-SPIKES_PER_PILLAR_MAX = 12       # Số gai tối đa ngẫu nhiên mỗi cột (Gấp đôi: 6 -> 12)
-SPIKE_RADIUS_MIN = 0.05          # Bán kính đáy gai tối thiểu (m)
-SPIKE_RADIUS_MAX = 0.20          # Bán kính đáy gai tối đa (m)
-SPIKE_LENGTH_MIN = 0.20          # Độ dài gai nhô ra tối thiểu (m)
-SPIKE_LENGTH_MAX = 0.80          # Độ dài gai nhô ra tối đa (m)
+SPIKES_PER_PILLAR_MIN = 10
+SPIKES_PER_PILLAR_MAX = 16
+SPIKE_RADIUS_MIN = 0.05
+SPIKE_RADIUS_MAX = 0.20
+SPIKE_LENGTH_MIN = 0.30
+SPIKE_LENGTH_MAX = 1.10
 
-# 5. Cấu hình Bước & Giới hạn Bản đồ Động (Dynamic Map Boundaries)
-# Quãng đường tối đa tăng từ 10.5m lên 21m -> Tăng MAX_STEPS từ 80 lên 140
-MAX_STEPS = 140                  # Tối đa 140 bước cấp cao PPO mỗi episode cho bản đồ dài 21m
-MAX_STEP_DISTANCE = 2.0          # Khoảng cách bước d in [0.1, 2.0] m
-SUBSTEPS_PER_ACTION = 150        # Số bước PID con tối đa mỗi PPO step (~48Hz)
+MAX_STEPS = 140
+MAX_STEP_DISTANCE = 2.0
+SUBSTEPS_PER_ACTION = 150
 
-OVERMAP_PAST_GOAL_DISTANCE = 0.0     # Đúng bằng 0: Không cho phép vượt quá vị trí đích (Y không được nhỏ hơn Y_goal)
-OVERMAP_BEHIND_START_DISTANCE = 1.0  # Tối đa 1 đơn vị sau điểm xuất phát Y
-OVERMAP_X_MARGIN = 1.5               # Lề đệm vượt ra ngoài cột ngoài cùng trục X
+OVERMAP_PAST_GOAL_DISTANCE = 0.0
+OVERMAP_BEHIND_START_DISTANCE = 1.0
+OVERMAP_X_MARGIN = 1.5
 
-MAP_LIMIT_X = 6.5                # Giới hạn biên trục X tối đa toàn map
-MAP_LIMIT_Y = 22.0               # Mở rộng giới hạn biên trục Y từ 12.0m lên 22.0m (bao phủ Y = -10.0m)
-MIN_Z = 0.8                      # Độ cao tối thiểu an toàn (Cách đất >= 0.8m)
-MAX_Z = 2.5                      # Độ cao tối đa
+MAP_LIMIT_X = 6.5
+MAP_LIMIT_Y = 22.0
+MIN_Z = 0.8
+MAX_Z = 2.5
 
-# 6. Hệ số va chạm (Collision Margin)
-COLLISION_MARGIN = 0.05          # Giữ nguyên 0.05m (5cm) giúp drone lách mượt quanh các gai nhọn
+COLLISION_MARGIN = 0.05
 
-# 7. Kích thước ảnh & Cấu hình Camera FPV
 IMG_WIDTH = 64
 IMG_HEIGHT = 64
-CAMERA_FOVY = 75.0               # Góc mở camera FPV (độ). Ảnh 64x64 nên góc ngang = góc dọc = 75 độ
-CAMERA_HALF_FOV = 37.5           # Nửa góc mở = 37.5 độ (Biên tối đa camera nhìn thấy mỗi bên)
+CAMERA_FOVY = 75.0
+CAMERA_HALF_FOV = 37.5
 
-# Khống chế góc bay (alpha, beta) nằm gọn bên trong vùng nhìn thấy của camera
-MAX_ALPHA_DEG = 35.0             # Góc lái ngang alpha in [-35 deg, +35 deg] (nằm trong tầm nhìn 37.5 deg)
-MAX_BETA_DEG = 30.0              # Góc nâng/chúc beta in [-30 deg, +30 deg] (nằm trong tầm nhìn 37.5 deg)
+MAX_ALPHA_DEG = 35.0
+MAX_BETA_DEG = 30.0
 
-# 8. Cấu hình Camera 3D GUI khi hiển thị trực tiếp (GUI Viewer Camera)
-GUI_CAMERA_TRACKING = True     # True: Tự động khóa camera đi theo Drone (Tracking mode)
-                               # False: Camera tự do đứng yên một chỗ (Free mode)
-GUI_CAMERA_DISTANCE = 3.5      # Khoảng cách từ camera tới Drone (m)
-GUI_CAMERA_ELEVATION = -20.0   # Góc ngẩng/chúc nhìn từ trên xuống (độ, ví dụ: -20 đến -30)
-GUI_CAMERA_AZIMUTH = -90.0     # Góc xoay ngang (-90 là nhìn từ sau lưng Drone thẳng về hướng đích)
-GUI_SHOW_RIGHT_UI = False      # False: Ẩn thanh công cụ bên phải để màn hình rộng rãi
-GUI_SHOW_LEFT_UI = False       # False: Ẩn thanh thông số bên trái
+GUI_CAMERA_TRACKING = True
+GUI_CAMERA_DISTANCE = 3.5
+GUI_CAMERA_ELEVATION = -20.0
+GUI_CAMERA_AZIMUTH = -90.0
+GUI_SHOW_RIGHT_UI = False
+GUI_SHOW_LEFT_UI = False
 
-# 9. Cấu hình Cửa sổ hiển thị kép (Dual Window: MuJoCo 3D + Drone POV FPV)
-GUI_SHOW_POV_WINDOW = True     # True: Mở thêm cửa sổ thứ 2 hiển thị trực tiếp camera POV (FPV) từ mũi Drone
-GUI_POV_WINDOW_SIZE = 256      # Kích thước cửa sổ POV (pixels, ví dụ: 256x256 hoặc 320x320)
+GUI_SHOW_POV_WINDOW = True
+GUI_POV_WINDOW_SIZE = 256

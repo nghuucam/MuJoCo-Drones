@@ -21,7 +21,6 @@ class FlightLoggerCallback(BaseCallback):
         self.csv_writer = None
         self.global_episode_id = 0
         
-        # Buffer theo dõi từng worker: worker_idx -> list of rows
         self.env_buffers = {}
         self.env_accum_rewards = {}
 
@@ -34,7 +33,6 @@ class FlightLoggerCallback(BaseCallback):
             self.csv_writer = csv.writer(self.log_file)
             
             if not file_exists:
-                # Header kế thừa 100% tên cột từ D3QN + bổ sung Level và Reward từng bước
                 self.csv_writer.writerow([
                     'Eposide',
                     'Step',
@@ -73,7 +71,6 @@ class FlightLoggerCallback(BaseCallback):
             r = float(rewards[i])
             self.env_accum_rewards[i] += r
             
-            # Đếm số bước của episode
             step = info.get("step_count", len(self.env_buffers[i]) + 1)
             level = info.get("curriculum_level", 0)
             
@@ -91,7 +88,6 @@ class FlightLoggerCallback(BaseCallback):
             over_step = 1 if info.get("over_step") else 0
             over_map = 1 if info.get("over_map") else 0
             
-            # Action: [alpha, beta, d]
             if actions is not None and len(actions) > i:
                 act = actions[i]
                 if hasattr(act, "tolist"):
@@ -103,7 +99,7 @@ class FlightLoggerCallback(BaseCallback):
                 action_str = "[]"
             
             row = [
-                None, # Sẽ gán ID Episode khi hoàn thành
+                None,
                 step,
                 level,
                 start_str,
@@ -121,11 +117,9 @@ class FlightLoggerCallback(BaseCallback):
             ]
             self.env_buffers[i].append(row)
             
-            # Khi episode kết thúc (done == True)
             if dones is not None and dones[i]:
                 self.global_episode_id += 1
                 
-                # Ghi toàn bộ chuỗi bước của episode này vào CSV
                 if self.csv_writer is not None:
                     try:
                         for r_data in self.env_buffers[i]:
@@ -133,10 +127,8 @@ class FlightLoggerCallback(BaseCallback):
                             self.csv_writer.writerow(r_data)
                         self.log_file.flush()
                     except PermissionError:
-                        # Tránh crash nếu người dùng đang tạm thời khóa file trong Excel
                         pass
                 
-                # Reset buffer cho worker này
                 self.env_buffers[i] = []
                 self.env_accum_rewards[i] = 0.0
 

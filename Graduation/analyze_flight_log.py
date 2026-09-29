@@ -18,7 +18,6 @@ def analyze(file_path: str, window_size: int = 50, save_fig: bool = True, show_f
         print("⚠️ File log trống hoặc không có cột 'Eposide'!")
         return
 
-    # Lấy thông số ở dòng cuối cùng của từng Episode (chuẩn tương tự ana1.py của D3QN)
     episodes_summary = df.groupby('Eposide').last().reset_index()
     total_episodes = len(episodes_summary)
 
@@ -56,14 +55,12 @@ def analyze(file_path: str, window_size: int = 50, save_fig: bool = True, show_f
     cols_to_show = [c for c in ['Eposide', 'Level', 'AccumReward', 'Win', 'Collision', 'Over_Step'] if c in episodes_summary.columns]
     print(episodes_summary[cols_to_show].tail(5).to_string(index=False))
 
-    # Tính toán đường trung bình trượt (Moving Average)
     episodes_summary['Moving_Reward'] = episodes_summary['AccumReward'].rolling(window=window_size, min_periods=1).mean()
     episodes_summary['Moving_Win_Rate'] = episodes_summary['Win'].rolling(window=window_size, min_periods=1).mean() * 100
     episodes_summary['Moving_Collision'] = episodes_summary['Collision'].rolling(window=window_size, min_periods=1).mean() * 100
 
     fig, axes = plt.subplots(3, 1, figsize=(12, 12), sharex=True)
 
-    # Đồ thị 1: Điểm thưởng tích lũy (Reward)
     axes[0].plot(episodes_summary['Eposide'], episodes_summary['AccumReward'], alpha=0.25, color='gray', label='Điểm từng tập')
     axes[0].plot(episodes_summary['Eposide'], episodes_summary['Moving_Reward'], color='blue', linewidth=2, label=f'Trung bình trượt ({window_size} tập)')
     axes[0].set_title('Biểu đồ Điểm thưởng (Accumulated Reward) qua các hiệp')
@@ -71,7 +68,6 @@ def analyze(file_path: str, window_size: int = 50, save_fig: bool = True, show_f
     axes[0].grid(True, linestyle='--', alpha=0.6)
     axes[0].legend(loc='upper left')
 
-    # Đồ thị 2: Tỷ lệ Win Rate & Collision Rate
     axes[1].plot(episodes_summary['Eposide'], episodes_summary['Moving_Win_Rate'], color='green', linewidth=2, label=f'Win Rate trượt ({window_size} tập)')
     axes[1].plot(episodes_summary['Eposide'], episodes_summary['Moving_Collision'], color='red', linewidth=1.5, linestyle='--', label=f'Collision Rate trượt')
     axes[1].set_title('Biểu đồ Tỷ lệ chiến thắng (Win Rate) và Va chạm (Collision)')
@@ -80,7 +76,6 @@ def analyze(file_path: str, window_size: int = 50, save_fig: bool = True, show_f
     axes[1].grid(True, linestyle='--', alpha=0.6)
     axes[1].legend(loc='upper left')
 
-    # Đồ thị 3: Tiến trình Cấp độ Curriculum
     if 'Level' in episodes_summary.columns:
         axes[2].step(episodes_summary['Eposide'], episodes_summary['Level'], color='purple', linewidth=2, where='post', label='Cấp độ Curriculum')
         axes[2].set_title('Tiến trình Cấp độ Curriculum (Level 0 -> 3)')

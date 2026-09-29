@@ -45,10 +45,8 @@ class GlobalCurriculumCallback(BaseCallback):
         self.advance_streak = 0
 
     def _on_step(self) -> bool:
-        # Ghi chỉ số Level hiện tại vào TensorBoard
         self.logger.record("curriculum/level", float(self.current_level))
 
-        # Lấy thông tin từ các infos trả về của vec_env
         for info in self.locals.get("infos", []):
             if "is_success" in info and ("terminal_observation" in info or info.get("collision") or info.get("win") or info.get("step_count", 0) >= config.MAX_STEPS):
                 is_succ = float(info.get("is_success", False))
@@ -82,7 +80,6 @@ class GlobalCurriculumCallback(BaseCallback):
                     print(f"📉 HẠ BỚT ĐỘ KHÓ VỀ LEVEL {self.current_level} để drone học lại nền tảng!\n")
 
     def _update_env_levels(self):
-        # Đồng bộ level mới xuống tất cả các môi trường song song trong SubprocVecEnv
         self.training_env.env_method("set_level", self.current_level)
 
 
@@ -128,7 +125,6 @@ def main():
     vec_env = VecMonitor(vec_env, filename=os.path.join(logs_dir, "monitor_ver4.csv"))
     print("✅ Đã khởi tạo thành công tất cả các CPU workers!")
 
-    # 1. Khởi tạo Callback Curriculum toàn cục
     curriculum_cb = GlobalCurriculumCallback(
         window_size=100,
         threshold_advance=0.8,
@@ -138,14 +134,12 @@ def main():
         verbose=1
     )
 
-    # 2. Callback checkpoint tự động
     checkpoint_cb = CheckpointCallback(
         save_freq=max(1, args.save_freq // args.num_cpu),
         save_path=models_dir,
         name_prefix=f"drone_ppo_curriculum_{args.num_cpu}cpu_ver4"
     )
 
-    # 3. Callback ghi nhật ký bay chi tiết ra file CSV (Excel-compatible)
     flight_log_path = os.path.join(logs_dir, "drone_flight_log_parallel_ver4.csv")
     flight_logger_cb = FlightLoggerCallback(
         log_path=flight_log_path,
@@ -153,25 +147,7 @@ def main():
     )
     print(f"📊 Nhật ký bay chi tiết (Excel CSV): {flight_log_path}")
 
-    # 4. Khởi tạo PPO MultiInputPolicy với target_kl chống nổ gradient
-    # Ver1
-    # model = PPO(
-    #     policy="MultiInputPolicy",
-    #     env=vec_env,
-    #     learning_rate=args.lr,
-    #     n_steps=128,
-    #     batch_size=args.batch_size,
-    #     n_epochs=10,
-    #     gamma=0.99,
-    #     gae_lambda=0.95,
-    #     clip_range=0.2,
-    #     target_kl=0.05,
-    #     ent_coef=0.01,
-    #     verbose=1,
-    #     tensorboard_log=logs_dir
-    # )
 
-    #Ver2
     model = PPO(
         policy="MultiInputPolicy",
         env=vec_env,

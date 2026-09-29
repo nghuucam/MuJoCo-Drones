@@ -43,7 +43,6 @@ class SingleEnvCurriculumCallback(BaseCallback):
         self.episode_outcomes = deque(maxlen=window_size)
 
     def _on_step(self) -> bool:
-        # Ghi chỉ số Level hiện tại vào TensorBoard
         self.logger.record("curriculum/level", float(self.current_level))
 
         for info in self.locals.get("infos", []):
