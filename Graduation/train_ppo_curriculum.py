@@ -29,7 +29,7 @@ class SingleEnvCurriculumCallback(BaseCallback):
         window_size: int = 20,
         threshold_advance: float = 0.8,
         threshold_retreat: float = 0.2,
-        num_levels: int = 4,
+        num_levels: int = len(config.GOAL_Y_RANGES),
         start_level: int = 0,
         verbose: int = 1
     ):
@@ -79,17 +79,39 @@ class SingleEnvCurriculumCallback(BaseCallback):
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Huấn luyện PPO đơn tiến trình cho Drone với Curriculum Learning & Cột gai (Ver2)")
+    parser = argparse.ArgumentParser(description="Huấn luyện PPO đơn tiến trình cho Drone với Curriculum Learning & Cột gai (Ver4)")
+    # 1. Quản lý tài nguyên & Lưu trữ
     parser.add_argument("--timesteps", type=int, default=500000, help="Tổng số bước huấn luyện PPO (Mặc định: 500,000)")
     parser.add_argument("--save-freq", type=int, default=20000, help="Chu kỳ lưu checkpoint (Mặc định: 20,000 bước)")
-    parser.add_argument("--batch-size", type=int, default=64, help="Batch size PPO (Mặc định: 64)")
-    parser.add_argument("--lr", type=float, default=3e-4, help="Learning rate (Mặc định: 3e-4)")
     parser.add_argument("--gui", action="store_true", help="Bật cửa sổ đồ họa 3D MuJoCo GUI trực tiếp khi train")
+    parser.add_argument("--resume-model", type=str, default=None, help="Đường dẫn file model .zip để tiếp tục huấn luyện (Resume)")
+
+    # 2. Siêu tham số Mạng nơ-ron PPO
+    parser.add_argument("--lr", type=float, default=3e-4, help="Learning rate (Mặc định: 3e-4)")
+    parser.add_argument("--n-steps", type=int, default=256, help="Số bước lấy mẫu trước mỗi lần cập nhật policy (Mặc định: 256)")
+    parser.add_argument("--batch-size", type=int, default=64, help="Batch size PPO (Mặc định: 64)")
+    parser.add_argument("--n-epochs", type=int, default=10, help="Số epochs cập nhật mạng mỗi chu kỳ (Mặc định: 10)")
+    parser.add_argument("--gamma", type=float, default=0.99, help="Hệ số chiết khấu discount factor (Mặc định: 0.99)")
+    parser.add_argument("--gae-lambda", type=float, default=0.95, help="Hệ số GAE Lambda (Mặc định: 0.95)")
+    parser.add_argument("--clip-range", type=float, default=0.2, help="Biên cắt tỷ lệ chính sách PPO Clipping (Mặc định: 0.2)")
+    parser.add_argument("--ent-coef", type=float, default=0.01, help="Hệ số Entropy khuyến khích khám phá (Mặc định: 0.01)")
+    parser.add_argument("--target-kl", type=float, default=0.05, help="Ngưỡng Target KL divergence ngắt sớm (Mặc định: 0.05)")
+
+    # 3. Tham số Học chương trình Curriculum Learning
+    parser.add_argument("--start-level", type=int, default=0, help="Level khởi đầu từ 0 đến 6 (Mặc định: 0)")
+    parser.add_argument("--window-size", type=int, default=20, help="Cửa sổ đánh giá số episode gần nhất (Mặc định: 20)")
+    parser.add_argument("--threshold-advance", type=float, default=0.8, help="Tỷ lệ thắng tối thiểu để thăng cấp Level (Mặc định: 0.8)")
+    parser.add_argument("--threshold-retreat", type=float, default=0.2, help="Tỷ lệ thắng tối thiểu để không bị hạ Level (Mặc định: 0.2)")
+
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
+
+    assert args.n_steps % args.batch_size == 0, (
+        f"Lỗi cấu hình: Buffer size ({args.n_steps} n_steps) phải chia hết cho batch-size ({args.batch_size})!"
+    )
 
     models_dir = os.path.join(current_dir, "models")
     logs_dir = os.path.join(current_dir, "logs")
@@ -97,24 +119,29 @@ def main():
     os.makedirs(logs_dir, exist_ok=True)
 
     print("=" * 85)
-    print("🌵 HUẤN LUYỆN ĐƠN TIẾN TRÌNH PPO CURRICULUM + ẢNH FPV & TỌA ĐỘ ĐÍCH (GRADUATION / VER3)")
+    print("🌵 HUẤN LUYỆN ĐƠN TIẾN TRÌNH PPO CURRICULUM + ẢNH FPV & TỌA ĐỘ ĐÍCH (GRADUATION / VER4)")
     print("=" * 85)
     print(f"🎯 Tổng số bước huấn luyện: {args.timesteps:,}")
     print(f"🖥️ Chế độ GUI 3D: {'BẬT (Hiển thị)' if args.gui else 'TẮT (Chạy ngầm headless)'}")
-    print(f"📈 Tham số Curriculum: Window=50 | Advance=0.8 (80%) | Retreat=0.15 (15%) | MinGrace=80 eps | Levels=0..3")
+    print(f"📦 Batch Size: {args.batch_size} | N_Steps: {args.n_steps} | N_Epochs: {args.n_epochs}")
+    print(f"⚙️ LR: {args.lr} | Gamma: {args.gamma} | GAE: {args.gae_lambda} | Clip: {args.clip_range} | Ent: {args.ent_coef}")
+    print(f"📈 Curriculum: Level khởi đầu={args.start_level} | Window={args.window_size} | Advance={args.threshold_advance} | Retreat={args.threshold_retreat}")
     print(f"🛡️ Margin va chạm gai (Collision Margin): {config.COLLISION_MARGIN}m")
+    if args.resume_model:
+        print(f"🔄 Tiếp tục huấn luyện từ (Resume): {args.resume_model}")
     print("-" * 85)
 
     print("⏳ Đang khởi tạo môi trường MuJoCo Ver4...")
     raw_env = DronePPOCurriculumEnv(gui=args.gui)
+    raw_env.set_level(args.start_level)
     env = Monitor(raw_env, filename=os.path.join(logs_dir, "single_monitor_ver4.csv"))
 
     curriculum_cb = SingleEnvCurriculumCallback(
-        window_size=20,
-        threshold_advance=0.8,
-        threshold_retreat=0.2,
-        num_levels=4,
-        start_level=0,
+        window_size=args.window_size,
+        threshold_advance=args.threshold_advance,
+        threshold_retreat=args.threshold_retreat,
+        num_levels=len(config.GOAL_Y_RANGES),
+        start_level=args.start_level,
         verbose=1
     )
 
@@ -131,21 +158,38 @@ def main():
     )
     print(f"📊 Nhật ký bay chi tiết (Excel CSV): {flight_log_path}")
 
-    model = PPO(
-        policy="MultiInputPolicy",
-        env=env,
-        learning_rate=args.lr,
-        n_steps=128,
-        batch_size=args.batch_size,
-        n_epochs=10,
-        gamma=0.99,
-        gae_lambda=0.95,
-        clip_range=0.2,
-        target_kl=0.05,
-        ent_coef=0.01,
-        verbose=1,
-        tensorboard_log=logs_dir
-    )
+    if args.resume_model and os.path.exists(args.resume_model):
+        print(f"📦 Đang nạp trọng số mô hình cũ từ: {args.resume_model}")
+        model = PPO.load(
+            args.resume_model,
+            env=env,
+            learning_rate=args.lr,
+            n_steps=args.n_steps,
+            batch_size=args.batch_size,
+            n_epochs=args.n_epochs,
+            gamma=args.gamma,
+            gae_lambda=args.gae_lambda,
+            clip_range=args.clip_range,
+            target_kl=args.target_kl,
+            ent_coef=args.ent_coef,
+            tensorboard_log=logs_dir
+        )
+    else:
+        model = PPO(
+            policy="MultiInputPolicy",
+            env=env,
+            learning_rate=args.lr,
+            n_steps=args.n_steps,
+            batch_size=args.batch_size,
+            n_epochs=args.n_epochs,
+            gamma=args.gamma,
+            gae_lambda=args.gae_lambda,
+            clip_range=args.clip_range,
+            target_kl=args.target_kl,
+            ent_coef=args.ent_coef,
+            verbose=1,
+            tensorboard_log=logs_dir
+        )
 
     print("\n🏁 BẮT ĐẦU HUẤN LUYỆN ĐƠN TIẾN TRÌNH VER4 (Nhấn Ctrl+C để dừng an toàn bất kỳ lúc nào)...")
     print("=" * 85)
