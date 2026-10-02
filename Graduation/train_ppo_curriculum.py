@@ -97,8 +97,9 @@ def parse_args():
     parser.add_argument("--ent-coef", type=float, default=0.01, help="Hệ số Entropy khuyến khích khám phá (Mặc định: 0.01)")
     parser.add_argument("--target-kl", type=float, default=0.05, help="Ngưỡng Target KL divergence ngắt sớm (Mặc định: 0.05)")
 
-    # 3. Tham số Học chương trình Curriculum Learning
-    parser.add_argument("--start-level", type=int, default=0, help="Level khởi đầu từ 0 đến 6 (Mặc định: 0)")
+    # 3. Tham số Học chương trình Curriculum Learning & Tùy chọn Bỏ qua
+    parser.add_argument("--no-curriculum", action="store_true", help="Tắt hoàn toàn Curriculum Learning, cố định môi trường ở độ khó tối đa (Level 6 hoặc level chỉ định)")
+    parser.add_argument("--start-level", type=int, default=0, help="Level khởi đầu hoặc level cố định khi tắt curriculum (0 đến 6, Mặc định: 0 hoặc 6 nếu bật --no-curriculum)")
     parser.add_argument("--window-size", type=int, default=20, help="Cửa sổ đánh giá số episode gần nhất (Mặc định: 20)")
     parser.add_argument("--threshold-advance", type=float, default=0.8, help="Tỷ lệ thắng tối thiểu để thăng cấp Level (Mặc định: 0.8)")
     parser.add_argument("--threshold-retreat", type=float, default=0.2, help="Tỷ lệ thắng tối thiểu để không bị hạ Level (Mặc định: 0.2)")
@@ -118,6 +119,8 @@ def main():
     os.makedirs(models_dir, exist_ok=True)
     os.makedirs(logs_dir, exist_ok=True)
 
+    target_level = args.start_level if (args.start_level != 0 or not args.no_curriculum) else (len(config.GOAL_Y_RANGES) - 1)
+
     print("=" * 85)
     print("🌵 HUẤN LUYỆN ĐƠN TIẾN TRÌNH PPO CURRICULUM + ẢNH FPV & TỌA ĐỘ ĐÍCH (GRADUATION / VER4)")
     print("=" * 85)
@@ -125,37 +128,46 @@ def main():
     print(f"🖥️ Chế độ GUI 3D: {'BẬT (Hiển thị)' if args.gui else 'TẮT (Chạy ngầm headless)'}")
     print(f"📦 Batch Size: {args.batch_size} | N_Steps: {args.n_steps} | N_Epochs: {args.n_epochs}")
     print(f"⚙️ LR: {args.lr} | Gamma: {args.gamma} | GAE: {args.gae_lambda} | Clip: {args.clip_range} | Ent: {args.ent_coef}")
-    print(f"📈 Curriculum: Level khởi đầu={args.start_level} | Window={args.window_size} | Advance={args.threshold_advance} | Retreat={args.threshold_retreat}")
+    if args.no_curriculum:
+        print(f"🚫 Curriculum Learning: TẮT (Khóa cứng độ khó cố định ở Level {target_level} từ đầu đến cuối)")
+    else:
+        print(f"📈 Curriculum Learning: BẬT (Bắt đầu từ Level {target_level}, Tự động tăng/giảm theo Win Rate)")
+        print(f"   Window={args.window_size} | Advance={args.threshold_advance} | Retreat={args.threshold_retreat}")
     print(f"🛡️ Margin va chạm gai (Collision Margin): {config.COLLISION_MARGIN}m")
     if args.resume_model:
         print(f"🔄 Tiếp tục huấn luyện từ (Resume): {args.resume_model}")
     print("-" * 85)
 
-    print("⏳ Đang khởi tạo môi trường MuJoCo Ver4...")
+    print(f"⏳ Đang khởi tạo môi trường MuJoCo Ver4 (Độ khó: Level {target_level})...")
     raw_env = DronePPOCurriculumEnv(gui=args.gui)
-    raw_env.set_level(args.start_level)
+    raw_env.set_level(target_level)
     env = Monitor(raw_env, filename=os.path.join(logs_dir, "single_monitor_ver4.csv"))
 
-    curriculum_cb = SingleEnvCurriculumCallback(
-        window_size=args.window_size,
-        threshold_advance=args.threshold_advance,
-        threshold_retreat=args.threshold_retreat,
-        num_levels=len(config.GOAL_Y_RANGES),
-        start_level=args.start_level,
-        verbose=1
-    )
+    callbacks = []
+    if not args.no_curriculum:
+        curriculum_cb = SingleEnvCurriculumCallback(
+            window_size=args.window_size,
+            threshold_advance=args.threshold_advance,
+            threshold_retreat=args.threshold_retreat,
+            num_levels=len(config.GOAL_Y_RANGES),
+            start_level=target_level,
+            verbose=1
+        )
+        callbacks.append(curriculum_cb)
 
     checkpoint_cb = CheckpointCallback(
         save_freq=args.save_freq,
         save_path=models_dir,
-        name_prefix="drone_ppo_ver4_multiinput"
+        name_prefix=f"drone_ppo_{'nocurr' if args.no_curriculum else 'curriculum'}_single_ver4"
     )
+    callbacks.append(checkpoint_cb)
 
     flight_log_path = os.path.join(logs_dir, "drone_flight_log_ver4.csv")
     flight_logger_cb = FlightLoggerCallback(
         log_path=flight_log_path,
         verbose=1
     )
+    callbacks.append(flight_logger_cb)
     print(f"📊 Nhật ký bay chi tiết (Excel CSV): {flight_log_path}")
 
     if args.resume_model and os.path.exists(args.resume_model):
@@ -198,7 +210,7 @@ def main():
     try:
         model.learn(
             total_timesteps=args.timesteps,
-            callback=[curriculum_cb, checkpoint_cb, flight_logger_cb]
+            callback=callbacks
         )
         final_path = os.path.join(models_dir, "drone_ppo_ver4_multiinput_final.zip")
         model.save(final_path)
