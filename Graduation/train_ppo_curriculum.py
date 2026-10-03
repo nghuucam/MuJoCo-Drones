@@ -4,6 +4,7 @@ import time
 import argparse
 import numpy as np
 from collections import deque
+import torch
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.abspath(os.path.join(current_dir, ".."))
@@ -96,6 +97,7 @@ def parse_args():
     parser.add_argument("--clip-range", type=float, default=0.2, help="Biên cắt tỷ lệ chính sách PPO Clipping (Mặc định: 0.2)")
     parser.add_argument("--ent-coef", type=float, default=0.01, help="Hệ số Entropy khuyến khích khám phá (Mặc định: 0.01)")
     parser.add_argument("--target-kl", type=float, default=0.05, help="Ngưỡng Target KL divergence ngắt sớm (Mặc định: 0.05)")
+    parser.add_argument("--device", type=str, default="auto", choices=["auto", "cuda", "cpu"], help="Thiết bị tính toán mạng nơ-ron PPO ('auto', 'cuda', 'cpu', Mặc định: auto)")
 
     # 3. Tham số Học chương trình Curriculum Learning & Tùy chọn Bỏ qua
     parser.add_argument("--no-curriculum", action="store_true", help="Tắt hoàn toàn Curriculum Learning, cố định môi trường ở độ khó tối đa (Level 6 hoặc level chỉ định)")
@@ -124,6 +126,8 @@ def main():
     print("=" * 85)
     print("🌵 HUẤN LUYỆN ĐƠN TIẾN TRÌNH PPO CURRICULUM + ẢNH FPV & TỌA ĐỘ ĐÍCH (GRADUATION / VER4)")
     print("=" * 85)
+    gpu_info = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "Không có GPU (Dùng CPU)"
+    print(f"🚀 Thiết bị tính toán (Device): {args.device} | CUDA khả dụng: {torch.cuda.is_available()} [{gpu_info}]")
     print(f"🎯 Tổng số bước huấn luyện: {args.timesteps:,}")
     print(f"🖥️ Chế độ GUI 3D: {'BẬT (Hiển thị)' if args.gui else 'TẮT (Chạy ngầm headless)'}")
     print(f"📦 Batch Size: {args.batch_size} | N_Steps: {args.n_steps} | N_Epochs: {args.n_epochs}")
@@ -184,6 +188,7 @@ def main():
             clip_range=args.clip_range,
             target_kl=args.target_kl,
             ent_coef=args.ent_coef,
+            device=args.device,
             tensorboard_log=logs_dir
         )
     else:
@@ -199,6 +204,7 @@ def main():
             clip_range=args.clip_range,
             target_kl=args.target_kl,
             ent_coef=args.ent_coef,
+            device=args.device,
             verbose=1,
             tensorboard_log=logs_dir
         )
