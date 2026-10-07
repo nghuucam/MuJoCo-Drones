@@ -100,8 +100,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Huấn luyện song song PPO cho Drone với Curriculum Learning & Cột trụ Gai (Ver4)")
     # 1. Quản lý tài nguyên & Lưu trữ
     parser.add_argument("--num-cpu", type=int, default=4, help="Số lượng CPU workers chạy song song (Mặc định: 4)")
-    parser.add_argument("--timesteps", type=int, default=2000000, help="Tổng số bước huấn luyện PPO (Mặc định: 2,000,000)")
-    parser.add_argument("--save-freq", type=int, default=10000, help="Chu kỳ lưu checkpoint tổng thể (Mặc định: 10,000 bước)")
+    parser.add_argument("--timesteps", type=int, default=3000000, help="Tổng số bước huấn luyện PPO (Mặc định: 3,000,000)")
+    parser.add_argument("--save-freq", type=int, default=500000, help="Chu kỳ lưu checkpoint tổng thể (Mặc định: 500,000 bước)")
     parser.add_argument("--resume-model", type=str, default=None, help="Đường dẫn file model .zip để tiếp tục huấn luyện (Resume)")
 
     # 2. Siêu tham số Mạng nơ-ron PPO
