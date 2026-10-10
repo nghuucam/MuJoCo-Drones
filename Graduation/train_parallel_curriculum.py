@@ -99,6 +99,7 @@ def make_env(rank: int, seed: int = 0, initial_level: int = 0):
 def parse_args():
     parser = argparse.ArgumentParser(description="Huấn luyện song song PPO cho Drone với Curriculum Learning & Cột trụ Gai (Ver4)")
     # 1. Quản lý tài nguyên & Lưu trữ
+    parser.add_argument("--exp-name", type=str, default=None, help="Tên thí nghiệm riêng biệt để cách ly thư mục models, logs và flight_log (Ví dụ: run1, optuna_tuned)")
     parser.add_argument("--num-cpu", type=int, default=4, help="Số lượng CPU workers chạy song song (Mặc định: 4)")
     parser.add_argument("--timesteps", type=int, default=3000000, help="Tổng số bước huấn luyện PPO (Mặc định: 3,000,000)")
     parser.add_argument("--save-freq", type=int, default=500000, help="Chu kỳ lưu checkpoint tổng thể (Mặc định: 500,000 bước)")
@@ -135,14 +136,31 @@ def main():
         f"phải chia hết cho batch-size ({args.batch_size})!"
     )
 
-    models_dir = os.path.join(current_dir, "models")
-    logs_dir = os.path.join(current_dir, "logs")
+    if args.exp_name:
+        models_dir = os.path.join(current_dir, "models", args.exp_name)
+        logs_dir = os.path.join(current_dir, "logs", args.exp_name)
+        flight_log_path = os.path.join(logs_dir, f"drone_flight_log_{args.exp_name}.csv")
+        monitor_log_path = os.path.join(logs_dir, f"monitor_{args.exp_name}.csv")
+        ckpt_prefix = f"drone_ppo_{args.exp_name}_{args.num_cpu}cpu"
+        final_filename = f"drone_ppo_{args.exp_name}_final.zip"
+        interrupted_filename = f"drone_ppo_{args.exp_name}_interrupted.zip"
+    else:
+        models_dir = os.path.join(current_dir, "models")
+        logs_dir = os.path.join(current_dir, "logs")
+        flight_log_path = os.path.join(logs_dir, "drone_flight_log_parallel_ver4.csv")
+        monitor_log_path = os.path.join(logs_dir, "monitor_ver4.csv")
+        ckpt_prefix = f"drone_ppo_{'nocurr' if args.no_curriculum else 'curriculum'}_{args.num_cpu}cpu_ver4"
+        final_filename = f"drone_ppo_{'nocurr' if args.no_curriculum else 'curriculum'}_ver4_final.zip"
+        interrupted_filename = f"drone_ppo_{'nocurr' if args.no_curriculum else 'curriculum'}_ver4_interrupted.zip"
+
     os.makedirs(models_dir, exist_ok=True)
     os.makedirs(logs_dir, exist_ok=True)
 
     print("=" * 85)
     print("🌵 HUẤN LUYỆN SONG SONG PPO CURRICULUM + ẢNH FPV & TỌA ĐỘ ĐÍCH (GRADUATION / VER4)")
     print("=" * 85)
+    if args.exp_name:
+        print(f"🏷️ Tên thí nghiệm (Exp Name): {args.exp_name} (Thư mục độc lập)")
     gpu_info = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "Không có GPU (Dùng CPU)"
     print(f"💻 Workers CPU: {args.num_cpu} | Buffer size: {buffer_size} mẫu")
     print(f"🚀 Thiết bị tính toán (Device): {args.device} | CUDA khả dụng: {torch.cuda.is_available()} [{gpu_info}]")
@@ -158,6 +176,8 @@ def main():
         print(f"   Window={args.window_size} | Advance={args.threshold_advance} | Retreat={args.threshold_retreat}")
     print(f"🛡️ Margin va chạm gai (Collision Margin): {config.COLLISION_MARGIN}m")
     print(f"🎯 Bán kính đích (Goal Threshold): {config.GOAL_THRESHOLD}m")
+    print(f"📁 Thư mục lưu Models: {models_dir}")
+    print(f"📁 Thư mục lưu Logs TensorBoard: {logs_dir}")
     if args.resume_model:
         print(f"🔄 Tiếp tục huấn luyện từ (Resume): {args.resume_model}")
     print("-" * 85)
@@ -165,7 +185,7 @@ def main():
     print(f"⏳ Đang khởi tạo {args.num_cpu} tiến trình môi trường MuJoCo Ver4...")
     env_fns = [make_env(rank=i, seed=42, initial_level=target_level) for i in range(args.num_cpu)]
     vec_env = SubprocVecEnv(env_fns)
-    vec_env = VecMonitor(vec_env, filename=os.path.join(logs_dir, "monitor_ver4.csv"))
+    vec_env = VecMonitor(vec_env, filename=monitor_log_path)
     vec_env.env_method("set_level", target_level)
     print(f"✅ Đã khởi tạo thành công tất cả các CPU workers (Độ khó ban đầu: Level {target_level})!")
 
@@ -184,11 +204,10 @@ def main():
     checkpoint_cb = CheckpointCallback(
         save_freq=max(1, args.save_freq // args.num_cpu),
         save_path=models_dir,
-        name_prefix=f"drone_ppo_{'nocurr' if args.no_curriculum else 'curriculum'}_{args.num_cpu}cpu_ver4"
+        name_prefix=ckpt_prefix
     )
     callbacks.append(checkpoint_cb)
 
-    flight_log_path = os.path.join(logs_dir, "drone_flight_log_parallel_ver4.csv")
     flight_logger_cb = FlightLoggerCallback(
         log_path=flight_log_path,
         verbose=1
@@ -241,7 +260,7 @@ def main():
             total_timesteps=args.timesteps,
             callback=callbacks
         )
-        final_path = os.path.join(models_dir, f"drone_ppo_{'nocurr' if args.no_curriculum else 'curriculum'}_ver4_final.zip")
+        final_path = os.path.join(models_dir, final_filename)
         model.save(final_path)
         elapsed = time.time() - start_t
         print("\n" + "=" * 85)
@@ -250,7 +269,7 @@ def main():
         print("=" * 85)
     except KeyboardInterrupt:
         print("\n🛑 Phát hiện Ctrl+C! Đang lưu checkpoint khẩn cấp...")
-        interrupted_path = os.path.join(models_dir, f"drone_ppo_{'nocurr' if args.no_curriculum else 'curriculum'}_ver4_interrupted.zip")
+        interrupted_path = os.path.join(models_dir, interrupted_filename)
         model.save(interrupted_path)
         print(f"💾 Đã lưu model an toàn tại: {interrupted_path}")
     finally:
