@@ -82,7 +82,6 @@ def evaluate():
             print(f"   {'Bước':<6} | {'Tọa độ Drone [X, Y, Z]':<26} | {'Cách đích':<10} | {'Độ cao ΔZ':<10} | {'Reward':<8}")
             print(f"   {'-'*6} + {'-'*26} + {'-'*10} + {'-'*10} + {'-'*8}")
 
-        # Buffer ghi quỹ đạo tạm thời cho episode này
         ep_traj_buffer = [{
             "step": 0,
             "x": float(start_p[0]),
@@ -106,7 +105,6 @@ def evaluate():
             ep_reward  += reward
             step_count += 1
 
-            # Lưu từng bước vào buffer tạm
             ep_traj_buffer.append({
                 "step": int(step_count),
                 "x": float(cur_p[0]),
@@ -146,7 +144,6 @@ def evaluate():
             success_count += 1
             result_type = "win"
             status_str  = "🎉 THÀNH CÔNG (Tới Đích!)"
-            # Thắng thì xóa buffer sạch sẽ
             ep_traj_buffer.clear()
         elif is_col:
             result_type = "collision"
@@ -163,7 +160,6 @@ def evaluate():
 
         results.append((ep_reward, result_type, final_dist, step_count))
 
-        # NẾU THẤT BẠI: Lưu buffer quỹ đạo cùng thông tin vật cản
         if not is_win and len(ep_traj_buffer) > 0:
             obs_list = []
             for obs_item in env.obstacle_data:
@@ -200,16 +196,12 @@ def evaluate():
         print(f"   - Khoảng cách đích  : {final_dist:.2f}m  (Yêu cầu thắng: < {config.GOAL_THRESHOLD}m)")
         print(f"   - Tổng số bước      : {step_count} steps | Phần thưởng: {ep_reward:.2f}")
 
-    # Lưu file JSON nếu có màn chơi thua
     if failed_episodes_data:
         os.makedirs(os.path.dirname(args.failed_log), exist_ok=True)
         with open(args.failed_log, "w", encoding="utf-8") as f:
             json.dump(failed_episodes_data, f, ensure_ascii=False, indent=2)
         print(f"\n📁 ĐÃ LƯU {len(failed_episodes_data)} QUỸ ĐẠO MÀN THUA VÀO: {args.failed_log}")
 
-    # ──────────────────────────────────────────────────────────────────────────
-    # TỔNG HỢP KẾT QUẢ
-    # ──────────────────────────────────────────────────────────────────────────
     n         = args.episodes
     wins      = [(r, d, s) for r, t, d, s in results if t == "win"]
     cols      = [(r, d, s) for r, t, d, s in results if t == "collision"]

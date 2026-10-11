@@ -98,14 +98,12 @@ def make_env(rank: int, seed: int = 0, initial_level: int = 0):
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Huấn luyện song song PPO cho Drone với Curriculum Learning & Cột trụ Gai (Ver4)")
-    # 1. Quản lý tài nguyên & Lưu trữ
     parser.add_argument("--exp-name", type=str, default=None, help="Tên thí nghiệm riêng biệt để cách ly thư mục models, logs và flight_log (Ví dụ: run1, optuna_tuned)")
     parser.add_argument("--num-cpu", type=int, default=4, help="Số lượng CPU workers chạy song song (Mặc định: 4)")
     parser.add_argument("--timesteps", type=int, default=3000000, help="Tổng số bước huấn luyện PPO (Mặc định: 3,000,000)")
     parser.add_argument("--save-freq", type=int, default=500000, help="Chu kỳ lưu checkpoint tổng thể (Mặc định: 500,000 bước)")
     parser.add_argument("--resume-model", type=str, default=None, help="Đường dẫn file model .zip để tiếp tục huấn luyện (Resume)")
 
-    # 2. Siêu tham số Mạng nơ-ron PPO
     parser.add_argument("--lr", type=float, default=1e-4, help="Tốc độ học Learning rate (Mặc định: 1e-4)")
     parser.add_argument("--n-steps", type=int, default=512, help="Số bước lấy mẫu mỗi worker trước khi update (Mặc định: 512)")
     parser.add_argument("--batch-size", type=int, default=256, help="Batch size PPO (Mặc định: 256)")
@@ -117,7 +115,6 @@ def parse_args():
     parser.add_argument("--target-kl", type=float, default=0.05, help="Ngưỡng Target KL divergence ngắt sớm (Mặc định: 0.05)")
     parser.add_argument("--device", type=str, default="auto", choices=["auto", "cuda", "cpu"], help="Thiết bị tính toán mạng nơ-ron PPO ('auto', 'cuda', 'cpu', Mặc định: auto)")
 
-    # 3. Tham số Học chương trình Curriculum Learning & Tùy chọn Bỏ qua
     parser.add_argument("--no-curriculum", action="store_true", help="Tắt hoàn toàn Curriculum Learning, cố định môi trường ở độ khó tối đa (Level 6 hoặc level chỉ định)")
     parser.add_argument("--start-level", type=int, default=0, help="Level khởi đầu hoặc level cố định khi tắt curriculum (0 đến 6, Mặc định: 0 hoặc 6 nếu bật --no-curriculum)")
     parser.add_argument("--window-size", type=int, default=100, help="Cửa sổ đánh giá số episode gần nhất (Mặc định: 100)")

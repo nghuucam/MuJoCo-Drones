@@ -81,13 +81,11 @@ class SingleEnvCurriculumCallback(BaseCallback):
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Huấn luyện PPO đơn tiến trình cho Drone với Curriculum Learning & Cột gai (Ver4)")
-    # 1. Quản lý tài nguyên & Lưu trữ
     parser.add_argument("--timesteps", type=int, default=500000, help="Tổng số bước huấn luyện PPO (Mặc định: 500,000)")
     parser.add_argument("--save-freq", type=int, default=20000, help="Chu kỳ lưu checkpoint (Mặc định: 20,000 bước)")
     parser.add_argument("--gui", action="store_true", help="Bật cửa sổ đồ họa 3D MuJoCo GUI trực tiếp khi train")
     parser.add_argument("--resume-model", type=str, default=None, help="Đường dẫn file model .zip để tiếp tục huấn luyện (Resume)")
 
-    # 2. Siêu tham số Mạng nơ-ron PPO
     parser.add_argument("--lr", type=float, default=3e-4, help="Learning rate (Mặc định: 3e-4)")
     parser.add_argument("--n-steps", type=int, default=256, help="Số bước lấy mẫu trước mỗi lần cập nhật policy (Mặc định: 256)")
     parser.add_argument("--batch-size", type=int, default=64, help="Batch size PPO (Mặc định: 64)")
@@ -99,7 +97,6 @@ def parse_args():
     parser.add_argument("--target-kl", type=float, default=0.05, help="Ngưỡng Target KL divergence ngắt sớm (Mặc định: 0.05)")
     parser.add_argument("--device", type=str, default="auto", choices=["auto", "cuda", "cpu"], help="Thiết bị tính toán mạng nơ-ron PPO ('auto', 'cuda', 'cpu', Mặc định: auto)")
 
-    # 3. Tham số Học chương trình Curriculum Learning & Tùy chọn Bỏ qua
     parser.add_argument("--no-curriculum", action="store_true", help="Tắt hoàn toàn Curriculum Learning, cố định môi trường ở độ khó tối đa (Level 6 hoặc level chỉ định)")
     parser.add_argument("--start-level", type=int, default=0, help="Level khởi đầu hoặc level cố định khi tắt curriculum (0 đến 6, Mặc định: 0 hoặc 6 nếu bật --no-curriculum)")
     parser.add_argument("--window-size", type=int, default=20, help="Cửa sổ đánh giá số episode gần nhất (Mặc định: 20)")

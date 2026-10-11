@@ -31,13 +31,9 @@ def plot_single_failed_episode(ep_data, save_path=None, show=False):
                  f"Kết quả: {reason} | Tổng bước: {ep_data.get('total_steps')} | Cách đích: {ep_data.get('final_distance', 0):.2f}m",
                  fontsize=14, fontweight="bold", color="darkred" if result_type == "collision" else "darkblue")
 
-    # ──────────────────────────────────────────────────────────────────────────
-    # SUBPLOT 1: 3D TRAJECTORY
-    # ──────────────────────────────────────────────────────────────────────────
     ax3d = fig.add_subplot(1, 2, 1, projection="3d")
     ax3d.set_title("Góc nhìn 3D Không gian", fontsize=12, fontweight="bold")
 
-    # Vẽ các cột vật cản trong 3D
     for obs in obstacles:
         ox, oy, oh = obs["x"], obs["y"], obs["height"]
         z_cyl = np.linspace(0, oh, 10)
@@ -47,28 +43,23 @@ def plot_single_failed_episode(ep_data, save_path=None, show=False):
         y_grid = oy + cyl_rad * np.sin(theta_grid)
         ax3d.plot_surface(x_grid, y_grid, z_grid, color="gray", alpha=0.3, edgecolor="none")
 
-        # Vẽ gai của cột (nếu có)
         for sp in obs.get("spikes", []):
             sp_x = ox + sp["x"]
             sp_y = oy + sp["y"]
             sp_z = sp["z"]
             ax3d.plot([ox, sp_x], [oy, sp_y], [sp_z, sp_z], color="brown", linewidth=1.2, alpha=0.6)
 
-    # Vẽ đường quỹ đạo Drone
     ax3d.plot(xs, ys, zs, color="royalblue", linewidth=2.5, label="Đường bay Drone", zorder=5)
 
-    # Đánh dấu các mốc bước quan trọng
     if len(xs) > 1:
         step_interval = max(1, len(xs) // 8)
         for i in range(0, len(xs), step_interval):
             ax3d.scatter(xs[i], ys[i], zs[i], color="blue", s=20)
             ax3d.text(xs[i], ys[i], zs[i] + 0.05, f"#{steps[i]}", fontsize=8, color="navy")
 
-    # Điểm Xuất phát & Đích
     ax3d.scatter(start[0], start[1], start[2], color="forestgreen", s=120, marker="o", label="Xuất phát (Start)", zorder=10)
     ax3d.scatter(goal[0], goal[1], goal[2], color="crimson", s=180, marker="*", label="Đích (Goal)", zorder=10)
 
-    # Điểm xảy ra sự cố (Bước cuối)
     ax3d.scatter(xs[-1], ys[-1], zs[-1], color="red", s=250, marker="X", label=f"Vị trí Thua: {reason}", zorder=15)
 
     ax3d.set_xlabel("Trục X (m)")
@@ -77,39 +68,30 @@ def plot_single_failed_episode(ep_data, save_path=None, show=False):
     ax3d.legend(loc="upper left", fontsize=8)
     ax3d.grid(True, linestyle="--", alpha=0.5)
 
-    # ──────────────────────────────────────────────────────────────────────────
-    # SUBPLOT 2: 2D TOP-DOWN VIEW (Mặt phẳng XY)
-    # ──────────────────────────────────────────────────────────────────────────
     ax2d = fig.add_subplot(1, 2, 2)
     ax2d.set_title("Mặt bằng 2D nhìn từ trên xuống (Top-down XY)", fontsize=12, fontweight="bold")
 
-    # Vẽ các cột tròn trong 2D
     for i, obs in enumerate(obstacles):
         ox, oy = obs["x"], obs["y"]
         circle = plt.Circle((ox, oy), cyl_rad, color="dimgray", alpha=0.5, zorder=2)
         ax2d.add_patch(circle)
         
-        # Vẽ cọc gai vươn ra
         for sp in obs.get("spikes", []):
             sp_x = ox + sp["x"]
             sp_y = oy + sp["y"]
             ax2d.plot([ox, sp_x], [oy, sp_y], color="darkred", linewidth=1.5, alpha=0.7, zorder=3)
 
-    # Vẽ đường quỹ đạo trong 2D
     ax2d.plot(xs, ys, color="dodgerblue", linewidth=2.5, label="Quỹ đạo bay", zorder=4)
 
-    # Đánh dấu các mốc bước
     if len(xs) > 1:
         step_interval = max(1, len(xs) // 10)
         for i in range(0, len(xs), step_interval):
             ax2d.scatter(xs[i], ys[i], color="blue", s=25, zorder=5)
             ax2d.annotate(f"#{steps[i]}", (xs[i], ys[i]), textcoords="offset points", xytext=(4, 4), fontsize=8, color="darkblue")
 
-    # Start & Goal
     ax2d.scatter(start[0], start[1], color="forestgreen", s=140, marker="o", label="Xuất phát (Start)", zorder=10)
     ax2d.scatter(goal[0], goal[1], color="crimson", s=220, marker="*", label="Đích (Goal)", zorder=10)
 
-    # Điểm kết thúc
     ax2d.scatter(xs[-1], ys[-1], color="red", s=300, marker="X", label=f"Điểm dừng ({reason})", zorder=15)
     ax2d.annotate(f"Dừng tại bước #{steps[-1]} (Z={zs[-1]:.2f}m)",
                   (xs[-1], ys[-1]), textcoords="offset points", xytext=(8, -12),
