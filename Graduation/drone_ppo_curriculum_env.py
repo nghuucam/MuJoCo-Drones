@@ -289,15 +289,13 @@ class DronePPOCurriculumEnv(BaseAviary):
         return obs, float(substep_accum_reward), terminated, truncated, info
 
     def _computeSubstepReward(self):
-        """Hàm tính điểm thưởng 8 thành phần chuẩn hóa tối ưu:
-        1. R_progress: Thưởng tiến độ hướng đích (+1.0 * progress).
-        2. R_milestone: Thưởng lách gai cột mốc (+5.0 chỉ 1 lần duy nhất khi vượt qua cột ở cự ly an toàn 0.1 - 0.6m).
-        3. R_heading: Phạt bay ngược hướng đích (-0.01 * |cos(theta)| mỗi substep nếu cos(theta) < -0.2).
-        4. R_idle: Phạt lười di chuyển có điều kiện (-0.005 mỗi substep nếu đường trống > 1.5m và tốc độ < 0.1m/s).
-        5. R_proximity: Cảnh báo tiệm cận rủi ro sát gai (-0.005 mỗi substep nếu khoảng cách < 0.1m).
-        6. R_altitude_boundary: Phạt tì đè biên sàn / trần (-0.01 mỗi substep nếu z <= MIN_Z+0.05 hoặc z >= MAX_Z-0.05).
-        7. R_time: Chi phí thời gian (-0.002 mỗi substep).
-        8. R_terminal: Thưởng chạm đích (+100.0) / Phạt va chạm, văng map (-50.0).
+        """Hàm tính điểm thưởng chuẩn hóa tinh gọn:
+        1. R_time: Chi phí thời gian (-0.002 mỗi substep).
+        2. R_progress: Thưởng tiến độ hướng đích (+1.0 * progress).
+        3. R_idle: Phạt lười di chuyển có điều kiện (-0.005 mỗi substep nếu đường trống > 1.5m và tốc độ < 0.1m/s).
+        4. R_proximity: Cảnh báo tiệm cận rủi ro sát gai (-0.005 mỗi substep nếu khoảng cách < 0.1m).
+        5. R_altitude_boundary: Phạt tì đè biên sàn / trần (-0.01 mỗi substep nếu z <= MIN_Z+0.05 hoặc z >= MAX_Z-0.05).
+        6. R_terminal: Thưởng chạm đích (+100.0) / Phạt va chạm, văng map (-50.0).
         """
         cur_p = self.pos[0]
         cur_dist_goal = float(np.linalg.norm(cur_p - self.goal[0]))
@@ -308,32 +306,12 @@ class DronePPOCurriculumEnv(BaseAviary):
             progress = self.best_dist_to_goal - cur_dist_goal
             self.best_dist_to_goal = cur_dist_goal
             r += 1.0 * progress
-        elif cur_dist_goal > self.previous_dist:
-            regress = cur_dist_goal - self.previous_dist
-            r -= 3.0 * regress
 
         self.previous_dist = cur_dist_goal
 
-        for i, obs in enumerate(self.obstacle_data):
-            if i not in self.cleared_obstacles:
-                ox, oy, h_total, spikes = obs
-                if cur_p[1] <= oy:
-                    self.cleared_obstacles.add(i)
-                    d_obs = self._get_distance_to_obstacle(i)
-                    if 0.1 <= d_obs <= 0.6:
-                        r += 5.0
-
         min_obstacle_dist = self._get_min_obstacle_distance()
-
         cur_v = self.vel[0]
-        vec_to_goal = self.goal[0] - cur_p
         speed = float(np.linalg.norm(cur_v))
-        dist_goal = float(cur_dist_goal)
-
-        if speed > 0.05 and dist_goal > 1e-4:
-            cos_theta = float(np.dot(cur_v, vec_to_goal) / (speed * dist_goal))
-            if cos_theta < -0.2:
-                r -= 0.01 * abs(cos_theta)
 
         if min_obstacle_dist > 1.5 and speed < 0.1:
             r -= 0.005

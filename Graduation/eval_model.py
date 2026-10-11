@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+import json
 import argparse
 import numpy as np
 
@@ -13,6 +14,7 @@ from drone_ppo_curriculum_env import DronePPOCurriculumEnv
 from stable_baselines3 import PPO
 
 MODELS_DIR = os.path.join(current_dir, "models")
+LOGS_DIR = os.path.join(current_dir, "logs")
 
 
 def get_default_model_path():
@@ -29,12 +31,14 @@ def get_default_model_path():
 
 def evaluate():
     parser = argparse.ArgumentParser(description="Đánh giá / Xem thử Drone hoạt động với Model đã huấn luyện (Ver4)")
-    parser.add_argument("--model-path", type=str, default=None, help="Đường dẫn file model (.zip). Mặc định: tự tìm model mới nhất")
-    parser.add_argument("--level",      type=int, default=6,    help="Cấp độ Curriculum cần test (0 đến 6, Mặc định: 6)")
-    parser.add_argument("--episodes",   type=int, default=5,    help="Số lượng episode test (Mặc định: 5)")
-    parser.add_argument("--no-gui",     action="store_true",    help="Tắt giao diện 3D (Chỉ in kết quả log)")
-    parser.add_argument("--show-marker",action="store_true",    help="Bật lại con trỏ chấm trắng khổng lồ trên đầu Drone")
-    parser.add_argument("--quiet",      action="store_true",    help="Ẩn bảng in tọa độ chi tiết từng bước")
+    parser.add_argument("--model-path",   type=str, default=None, help="Đường dẫn file model (.zip). Mặc định: tự tìm model mới nhất")
+    parser.add_argument("--level",        type=int, default=6,    help="Cấp độ Curriculum cần test (0 đến 6, Mặc định: 6)")
+    parser.add_argument("--episodes",     type=int, default=5,    help="Số lượng episode test (Mặc định: 5)")
+    parser.add_argument("--no-gui",       action="store_true",    help="Tắt giao diện 3D (Chỉ in kết quả log)")
+    parser.add_argument("--show-marker",  action="store_true",    help="Bật lại con trỏ chấm trắng khổng lồ trên đầu Drone")
+    parser.add_argument("--quiet",        action="store_true",    help="Ẩn bảng in tọa độ chi tiết từng bước")
+    parser.add_argument("--failed-log",   type=str, default=os.path.join(LOGS_DIR, "failed_trajectories.json"),
+                        help="Đường dẫn lưu file JSON các quỹ đạo thất bại")
     args = parser.parse_args()
 
     model_path = args.model_path if (args.model_path and os.path.exists(args.model_path)) else get_default_model_path()
@@ -51,6 +55,7 @@ def evaluate():
     gui = not args.no_gui
     print(f"🎮 Giao diện 3D GUI : {'BẬT' if gui else 'TẮT'}")
     print(f"🎯 Cấp độ thử nghiệm: Level {args.level}")
+    print(f"💾 File log quỹ đạo thua: {args.failed_log}")
     print("-" * 80)
 
     env = DronePPOCurriculumEnv(gui=gui, show_marker=args.show_marker)
@@ -60,22 +65,32 @@ def evaluate():
     print("✅ Đã nạp thành công mô hình PPO!")
 
     success_count = 0
-    # Mỗi phần tử: (ep_reward, result_type, final_dist, step_count)
     results = []
+    failed_episodes_data = []
 
     for ep in range(args.episodes):
         print(f"\n▶️ --- EPISODE TEST {ep + 1}/{args.episodes} (Level {args.level}) ---")
         obs, info = env.reset()
 
         goal_p    = env.goal[0].copy()
-        cur_p     = env.pos[0].copy()
-        init_dist = float(np.linalg.norm(cur_p - goal_p))
+        start_p   = env.pos[0].copy()
+        init_dist = float(np.linalg.norm(start_p - goal_p))
         print(f"   🎯 Tọa độ Đích      : X={goal_p[0]:+6.2f}, Y={goal_p[1]:+6.2f}, Z={goal_p[2]:5.2f}m")
-        print(f"   🛫 Vị trí Xuất phát : X={cur_p[0]:+6.2f}, Y={cur_p[1]:+6.2f}, Z={cur_p[2]:5.2f}m  (Cách đích: {init_dist:.2f}m)")
+        print(f"   🛫 Vị trí Xuất phát : X={start_p[0]:+6.2f}, Y={start_p[1]:+6.2f}, Z={start_p[2]:5.2f}m  (Cách đích: {init_dist:.2f}m)")
 
         if not args.quiet:
             print(f"   {'Bước':<6} | {'Tọa độ Drone [X, Y, Z]':<26} | {'Cách đích':<10} | {'Độ cao ΔZ':<10} | {'Reward':<8}")
             print(f"   {'-'*6} + {'-'*26} + {'-'*10} + {'-'*10} + {'-'*8}")
+
+        # Buffer ghi quỹ đạo tạm thời cho episode này
+        ep_traj_buffer = [{
+            "step": 0,
+            "x": float(start_p[0]),
+            "y": float(start_p[1]),
+            "z": float(start_p[2]),
+            "dist_to_goal": float(init_dist),
+            "reward": 0.0
+        }]
 
         ep_reward  = 0.0
         step_count = 0
@@ -90,6 +105,16 @@ def evaluate():
 
             ep_reward  += reward
             step_count += 1
+
+            # Lưu từng bước vào buffer tạm
+            ep_traj_buffer.append({
+                "step": int(step_count),
+                "x": float(cur_p[0]),
+                "y": float(cur_p[1]),
+                "z": float(cur_p[2]),
+                "dist_to_goal": float(dist_goal),
+                "reward": float(reward)
+            })
 
             if not args.quiet:
                 coord_str = f"[{cur_p[0]:+6.2f}, {cur_p[1]:+6.2f}, {cur_p[2]:5.2f}m]"
@@ -121,6 +146,8 @@ def evaluate():
             success_count += 1
             result_type = "win"
             status_str  = "🎉 THÀNH CÔNG (Tới Đích!)"
+            # Thắng thì xóa buffer sạch sẽ
+            ep_traj_buffer.clear()
         elif is_col:
             result_type = "collision"
             status_str  = "💥 VA CHẠM (Đâm Cột / Gai / Sàn)"
@@ -136,11 +163,49 @@ def evaluate():
 
         results.append((ep_reward, result_type, final_dist, step_count))
 
+        # NẾU THẤT BẠI: Lưu buffer quỹ đạo cùng thông tin vật cản
+        if not is_win and len(ep_traj_buffer) > 0:
+            obs_list = []
+            for obs_item in env.obstacle_data:
+                ox, oy, h_total, spikes = obs_item
+                spikes_list = [
+                    {"x": float(sp[0]), "y": float(sp[1]), "z": float(sp[2]), "length": float(sp[3]), "radius": float(sp[4])}
+                    for sp in spikes
+                ]
+                obs_list.append({
+                    "x": float(ox),
+                    "y": float(oy),
+                    "height": float(h_total),
+                    "spikes": spikes_list
+                })
+
+            failed_episodes_data.append({
+                "episode_index": int(ep + 1),
+                "level": int(args.level),
+                "result_type": result_type,
+                "reason": status_str,
+                "total_reward": float(ep_reward),
+                "total_steps": int(step_count),
+                "final_distance": float(final_dist),
+                "start_pos": [float(start_p[0]), float(start_p[1]), float(start_p[2])],
+                "goal_pos": [float(goal_p[0]), float(goal_p[1]), float(goal_p[2])],
+                "cylinder_radius": float(config.CYLINDER_RADIUS),
+                "obstacles": obs_list,
+                "trajectory": ep_traj_buffer
+            })
+
         print(f"   - Kết quả           : {status_str}")
         print(f"   - Vị trí Drone cuối : X={cur_p[0]:.2f}, Y={cur_p[1]:.2f}, Z={cur_p[2]:.2f}")
         print(f"   - Vị trí Đích       : X={goal_p[0]:.2f}, Y={goal_p[1]:.2f}, Z={goal_p[2]:.2f}")
         print(f"   - Khoảng cách đích  : {final_dist:.2f}m  (Yêu cầu thắng: < {config.GOAL_THRESHOLD}m)")
         print(f"   - Tổng số bước      : {step_count} steps | Phần thưởng: {ep_reward:.2f}")
+
+    # Lưu file JSON nếu có màn chơi thua
+    if failed_episodes_data:
+        os.makedirs(os.path.dirname(args.failed_log), exist_ok=True)
+        with open(args.failed_log, "w", encoding="utf-8") as f:
+            json.dump(failed_episodes_data, f, ensure_ascii=False, indent=2)
+        print(f"\n📁 ĐÃ LƯU {len(failed_episodes_data)} QUỸ ĐẠO MÀN THUA VÀO: {args.failed_log}")
 
     # ──────────────────────────────────────────────────────────────────────────
     # TỔNG HỢP KẾT QUẢ
@@ -183,27 +248,19 @@ def evaluate():
         print(_row("🛑 Khác (không xác định)", others))
     print("=" * 80)
 
-    # Gợi ý phân tích nguyên nhân thất bại
     if cols:
         avg_col_dist = float(np.mean([d for _, d, _ in cols]))
         print(f"\n   💡 Va chạm : Trung bình xảy ra khi còn cách đích {avg_col_dist:.2f}m.")
-        print(f"       Gợi ý  : Regress penalty đang hơi mạnh (x3.0), cân nhắc giảm xuống x1.5")
-        print(f"                trong hàm _computeSubstepReward() để Drone dám lách gai linh hoạt hơn.")
-
     if oversteps:
         avg_os_dist = float(np.mean([d for _, d, _ in oversteps]))
         avg_os_step = float(np.mean([s for _, _, s in oversteps]))
         print(f"\n   💡 Hết bước: Trung bình còn cách đích {avg_os_dist:.2f}m sau {avg_os_step:.0f} bước.")
-        if avg_os_dist < 5.0:
-            print(f"       Drone đã đi được phần lớn quãng đường nhưng chưa kịp về đích.")
-            print(f"       Gợi ý  : Cân nhắc tăng MAX_STEPS trong config.py (hiện tại = {config.MAX_STEPS}).")
-        else:
-            print(f"       Drone bị kẹt hoặc do dự ở giữa đường - có thể do reward lùi phạt quá nặng.")
-
     if overmaps:
         print(f"\n   💡 Văng map: Drone mất định hướng và bay vượt ra ngoài biên bản đồ.")
-        print(f"       Gợi ý  : Kiểm tra lại biên giới hạn Overmap trong config.py.")
 
+    if failed_episodes_data:
+        print(f"\n📊 ĐỂ VẼ CÁC MÀN CHƠI THUA, HÃY CHẠY LỆNH:")
+        print(f"   python plot_failed_trajectories.py --input {args.failed_log}")
     print("=" * 80)
 
     env.close()
