@@ -41,7 +41,7 @@ This repository presents an end-to-end research and engineering framework for au
 ## 2. Project Directory Structure
 
 ```
-c:\KLTN\MuJoCo-Drones\
+MuJoCo-Drones/
 │
 ├── README.md                           # Comprehensive documentation and operational guide
 ├── pyproject.toml                      # PEP 621 package metadata & complete dependency tree
@@ -108,10 +108,13 @@ python -c "import torch; print('CUDA Available:', torch.cuda.is_available(), '| 
 ```
 
 ### Step 3: Install All Project Dependencies from `pyproject.toml`
-Navigate to the root repository folder and install in editable mode:
+Navigate to the cloned repository directory and install:
 
 ```bash
-cd c:\KLTN\MuJoCo-Drones
+# Navigate into the project root folder
+cd MuJoCo-Drones
+
+# Install in editable development mode
 pip install -e .
 ```
 
@@ -137,7 +140,7 @@ The [`pyproject.toml`](file:///c:/KLTN/MuJoCo-Drones/pyproject.toml) configurati
 
 All command lines below should be executed from within the `Graduation/` directory:
 ```bash
-cd c:\KLTN\MuJoCo-Drones\Graduation
+cd Graduation
 ```
 
 ---
@@ -175,7 +178,7 @@ python train_parallel_curriculum.py --exp-name run_curr --num-cpu 6 --timesteps 
 
 # 2. Fine-tuning an existing model on Level 6 only with Optuna-tuned hyperparameters:
 python train_parallel_curriculum.py --exp-name fine_tune_level6 \
-  --resume-model models/run_curr/drone_ppo_run_curr_final.zip \
+  --resume-model "[Path/to/your/model.zip]" \
   --start-level 6 --no-curriculum \
   --lr 6e-5 --n-epochs 8 --clip-range 0.15 --ent-coef 0.0002 --gamma 0.98 \
   --num-cpu 6 --timesteps 1000000
@@ -209,7 +212,7 @@ python train_ppo_curriculum.py --timesteps 500000 --lr 1e-4 --batch-size 64 --st
 
 * **Execution:**
 ```bash
-python tune_optuna.py --resume-model models/drone_ppo_curriculum_ver4_final.zip --start-level 6 --num-cpu 4 --n-trials 10 --trial-timesteps 30000
+python tune_optuna.py --resume-model "[Path/to/your/model.zip]" --start-level 6 --num-cpu 4 --n-trials 10 --trial-timesteps 30000
 ```
 *Outputs are saved to `optuna_results/optuna_study.db`, alongside interactive HTML plots (`param_importances.html`, `parallel_coordinate.html`, `optimization_history.html`).*
 
@@ -233,10 +236,10 @@ python tune_optuna.py --resume-model models/drone_ppo_curriculum_ver4_final.zip 
 
 ```bash
 # Interactive evaluation of 10 episodes on Level 6 with 3D GUI:
-python eval_model.py --model-path models/drone_ppo_curriculum_ver4_final.zip --level 6 --episodes 10
+python eval_model.py --model-path "[Đường dẫn model của bạn / Path to your model.zip]" --level 6 --episodes 10
 
 # High-throughput headless evaluation (50 episodes) to record failure trajectories:
-python eval_model.py --model-path models/drone_ppo_curriculum_ver4_final.zip --level 6 --episodes 50 --no-gui --quiet
+python eval_model.py --model-path "[Đường dẫn model của bạn / Path to your model.zip]" --level 6 --episodes 50 --no-gui --quiet
 ```
 
 ---
