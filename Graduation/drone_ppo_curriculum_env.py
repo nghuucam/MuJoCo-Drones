@@ -295,7 +295,7 @@ class DronePPOCurriculumEnv(BaseAviary):
         3. R_idle: Phạt lười di chuyển có điều kiện (-0.005 mỗi substep nếu đường trống > 1.5m và tốc độ < 0.1m/s).
         4. R_proximity: Cảnh báo tiệm cận rủi ro sát gai (-0.005 mỗi substep nếu khoảng cách < 0.1m).
         5. R_altitude_boundary: Phạt tì đè biên sàn / trần (-0.01 mỗi substep nếu z <= MIN_Z+0.05 hoặc z >= MAX_Z-0.05).
-        6. R_terminal: Thưởng chạm đích (+100.0) / Phạt va chạm, văng map (-50.0).
+        6. R_terminal: Thưởng chạm đích (+100.0 + 0.5 * remaining_steps) / Phạt va chạm, văng map (-50.0).
         """
         cur_p = self.pos[0]
         cur_dist_goal = float(np.linalg.norm(cur_p - self.goal[0]))
@@ -331,7 +331,8 @@ class DronePPOCurriculumEnv(BaseAviary):
         if self.over_map and not self.win:
             r -= 50.0
         if self.win:
-            r += 100.0
+            remaining_steps = max(0, config.MAX_STEPS - (self.step_count + 1))
+            r += 100.0 + 0.5 * remaining_steps
 
         return r
 
