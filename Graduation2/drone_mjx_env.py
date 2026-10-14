@@ -9,6 +9,7 @@ if current_dir not in sys.path:
 
 import config_mjx as cfg
 from model_xml_builder import generate_static_mjx_xml
+from apf_jax import compute_apf_hint_jax
 
 IMPORT_ERROR_MSG = None
 try:
@@ -50,8 +51,11 @@ class DroneMJXEnv:
         self.obs_dim = 18
         self.act_dim = 3
 
-        self.v_step = jit(vmap(self._single_step, in_axes=(0, 0)))
+        self.v_step = jit(vmap(self._single_step, in_axes=(0, 0, 0)))
         self.v_reset = jit(vmap(self._single_reset, in_axes=(0, 0)))
+
+    def set_level(self, level: int):
+        self.default_level = int(level)
 
     def _single_reset(self, rng: jnp.ndarray, level: int) -> Tuple[DroneMJXState, jnp.ndarray]:
         rng, r_goal_x, r_goal_y = random.split(rng, 3)
@@ -88,25 +92,36 @@ class DroneMJXEnv:
         vel = state.data.qvel[0:3]
         quat = state.data.qpos[3:7]
         goal = state.goal
-
         rel_vec = goal - pos
         dist = jnp.linalg.norm(rel_vec)
 
-        dummy_rpy = jnp.zeros(3)
-        dummy_apf = jnp.zeros(2)
+        w, x, y, z = quat[0], quat[1], quat[2], quat[3]
+        sinr_cosp = 2.0 * (w * x + y * z)
+        cosr_cosp = 1.0 - 2.0 * (x * x + y * y)
+        roll = jnp.atan2(sinr_cosp, cosr_cosp)
+
+        sinp = 2.0 * (w * y - z * x)
+        pitch = jnp.where(jnp.abs(sinp) >= 1.0, jnp.sign(sinp) * (jnp.pi / 2.0), jnp.arcsin(jnp.clip(sinp, -1.0, 1.0)))
+
+        siny_cosp = 2.0 * (w * z + x * y)
+        cosy_cosp = 1.0 - 2.0 * (y * y + z * z)
+        yaw = jnp.atan2(siny_cosp, cosy_cosp)
+        rpy = jnp.array([roll, pitch, yaw])
+
+        apf_hint = compute_apf_hint_jax(pos, rpy, goal, state.level)
 
         obs = jnp.concatenate([
             pos,
             vel,
-            dummy_rpy,
+            rpy,
             goal,
             rel_vec,
             jnp.array([dist]),
-            dummy_apf
+            apf_hint
         ])
         return obs
 
-    def _single_step(self, state: DroneMJXState, action: jnp.ndarray) -> Tuple[DroneMJXState, jnp.ndarray, jnp.ndarray, jnp.ndarray, Dict[str, Any]]:
+    def _single_step(self, state: DroneMJXState, action: jnp.ndarray, target_level: jnp.ndarray) -> Tuple[DroneMJXState, jnp.ndarray, jnp.ndarray, jnp.ndarray, Dict[str, Any]]:
         action = jnp.clip(action, -1.0, 1.0)
         alpha, beta, step_dist = action[0], action[1], (action[2] + 1.0) * 0.5 * 1.3 + 0.2
 
@@ -162,7 +177,7 @@ class DroneMJXEnv:
 
         total_r = r_time + r_prog + r_win + r_col + r_map + r_time_out
 
-        next_state = DroneMJXState(
+        step_state = DroneMJXState(
             data=data,
             step_count=new_step,
             goal=state.goal,
@@ -170,13 +185,20 @@ class DroneMJXEnv:
             level=state.level,
             rng=state.rng
         )
+        step_obs = self._get_obs(step_state)
 
-        obs = self._get_obs(next_state)
+        rng, r_reset = random.split(state.rng)
+        reset_state, reset_obs = self._single_reset(r_reset, target_level)
+
+        next_state = jax.tree_util.tree_map(lambda r, s: jnp.where(done, r, s), reset_state, step_state)
+        obs = jnp.where(done, reset_obs, step_obs)
+
         info = {
             "win": win,
             "collision": collision,
             "over_map": over_map,
-            "dist": cur_dist
+            "dist": cur_dist,
+            "terminal_observation": step_obs
         }
         return next_state, obs, total_r, done, info
 
@@ -187,5 +209,8 @@ class DroneMJXEnv:
         rngs = random.split(rng, self.num_envs)
         return self.v_reset(rngs, levels)
 
-    def step(self, state: DroneMJXState, actions: jnp.ndarray):
-        return self.v_step(state, actions)
+    def step(self, state: DroneMJXState, actions: jnp.ndarray, level: int = None):
+        if level is None:
+            level = self.default_level
+        levels = jnp.full((self.num_envs,), level, dtype=jnp.int32)
+        return self.v_step(state, actions, levels)
