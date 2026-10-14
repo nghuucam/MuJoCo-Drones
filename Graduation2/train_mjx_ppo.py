@@ -40,8 +40,11 @@ def main():
     print(f"📊 Tổng số bước (Timesteps)     : {args.timesteps:,}")
 
     if not HAS_JAX:
-        print("\n❌ LỖI: JAX hoặc MuJoCo MJX chưa được cài đặt trong môi trường này!")
-        print("💡 Hãy chạy: pip install jax jaxlib mujoco")
+        from drone_mjx_env import IMPORT_ERROR_MSG
+        print("\n❌ LỖI KHI NẠP THƯ VIỆN JAX / MUJOCO MJX:")
+        print(f"   Chi tiết lỗi: {IMPORT_ERROR_MSG}")
+        print("💡 Hãy chạy trên Colab:")
+        print("   !pip install --upgrade mujoco mujoco-mjx \"jax[cuda12]\" flax")
         return
 
     devices = jax.devices()

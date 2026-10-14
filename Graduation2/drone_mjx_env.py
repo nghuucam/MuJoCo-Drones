@@ -10,15 +10,20 @@ if current_dir not in sys.path:
 import config_mjx as cfg
 from model_xml_builder import generate_static_mjx_xml
 
+IMPORT_ERROR_MSG = None
 try:
     import jax
     import jax.numpy as jnp
     from jax import jit, vmap, random
     import mujoco
-    from mujoco import mjx
+    try:
+        from mujoco import mjx
+    except ImportError:
+        import mjx
     HAS_JAX = True
-except ImportError:
+except Exception as e:
     HAS_JAX = False
+    IMPORT_ERROR_MSG = str(e)
 
 
 class DroneMJXState(NamedTuple):
@@ -45,8 +50,8 @@ class DroneMJXEnv:
         self.obs_dim = 18
         self.act_dim = 3
 
-        self.v_step = jit(vmap(self._single_step, in_axes=(None, 0, 0)))
-        self.v_reset = jit(vmap(self._single_reset, in_axes=(None, 0, 0)))
+        self.v_step = jit(vmap(self._single_step, in_axes=(0, 0)))
+        self.v_reset = jit(vmap(self._single_reset, in_axes=(0, 0)))
 
     def _single_reset(self, rng: jnp.ndarray, level: int) -> Tuple[DroneMJXState, jnp.ndarray]:
         rng, r_goal_x, r_goal_y = random.split(rng, 3)
