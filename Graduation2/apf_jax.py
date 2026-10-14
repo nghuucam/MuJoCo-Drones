@@ -27,7 +27,8 @@ def compute_apf_hint_jax(drone_pos: jnp.ndarray, drone_rpy: jnp.ndarray, goal_po
     deflect_angle = jnp.where(need_deflect, deflect_dir * 0.45, 0.0)
 
     total_deflect = jnp.sum(deflect_angle)
-    desired_yaw = -1.570796 + total_deflect
+    base_yaw = jnp.atan2(u_goal[1], u_goal[0])
+    desired_yaw = base_yaw + total_deflect
 
     d_surf = jnp.maximum(0.0, dist_obs - cfg.CYLINDER_RADIUS)
     near_mask = (d_surf < 0.6)[:, None]

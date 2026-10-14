@@ -37,7 +37,7 @@ class DroneMJXState(NamedTuple):
 
 
 class DroneMJXEnv:
-    def __init__(self, num_envs: int = cfg.NUM_ENVS, level: int = 6):
+    def __init__(self, num_envs: int = cfg.NUM_ENVS, level: int = 0):
         if not HAS_JAX:
             raise ImportError("JAX hoặc MuJoCo MJX chưa được cài đặt. Hãy cài đặt: pip install jax jaxlib mujoco")
 
@@ -70,7 +70,7 @@ class DroneMJXEnv:
 
         data = mjx.make_data(self.mjx_model)
         init_qpos = data.qpos.at[0:3].set(jnp.array([0.0, 11.0, 1.0]))
-        init_qpos = init_qpos.at[3:7].set(jnp.array([1.0, 0.0, 0.0, 0.0]))
+        init_qpos = init_qpos.at[3:7].set(jnp.array([0.7071068, 0.0, 0.0, -0.7071068]))
         data = data.replace(qpos=init_qpos, qvel=jnp.zeros_like(data.qvel))
 
         init_dist = jnp.linalg.norm(init_qpos[0:3] - goal)
@@ -123,10 +123,11 @@ class DroneMJXEnv:
 
     def _single_step(self, state: DroneMJXState, action: jnp.ndarray, target_level: jnp.ndarray) -> Tuple[DroneMJXState, jnp.ndarray, jnp.ndarray, jnp.ndarray, Dict[str, Any]]:
         action = jnp.clip(action, -1.0, 1.0)
-        alpha, beta, step_dist = action[0], action[1], (action[2] + 1.0) * 0.5 * 1.3 + 0.2
+        norm_a, norm_b, norm_d = action[0], action[1], action[2]
 
-        yaw = -1.570796 + alpha * 0.610865
-        pitch = beta * 0.523599
+        yaw = -1.570796 + norm_a * 0.610865
+        pitch = norm_b * 0.523599
+        step_dist = 0.2 + (norm_d + 1.0) * 0.65
 
         target_dx = step_dist * jnp.cos(pitch) * jnp.cos(yaw)
         target_dy = step_dist * jnp.cos(pitch) * jnp.sin(yaw)
@@ -134,17 +135,19 @@ class DroneMJXEnv:
 
         cur_pos = state.data.qpos[0:3]
         target_pos = cur_pos + jnp.array([target_dx, target_dy, target_dz])
+        target_pos = jnp.clip(
+            target_pos,
+            jnp.array([-cfg.X_LIMIT, -cfg.Y_LIMIT, cfg.MIN_Z]),
+            jnp.array([cfg.X_LIMIT, cfg.Y_LIMIT, cfg.MAX_Z])
+        )
 
         def sub_step(i, d):
-            kp_pos = 5.0
-            kp_vel = 2.0
             err_pos = target_pos - d.qpos[0:3]
             err_vel = -d.qvel[0:3]
-            acc_des = kp_pos * err_pos + kp_vel * err_vel
-
-            thrust_z = jnp.clip(acc_des[2] + cfg.GRAVITY, 0.0, 20.0) * (cfg.CF2_MASS / 4.0)
-            ctrl_val = (thrust_z / (cfg.CF2_MASS * cfg.GRAVITY)) * 2.0 - 1.0
-            ctrl = jnp.array([ctrl_val, acc_des[0]*0.1, acc_des[1]*0.1, 0.0])
+            acc_des = 8.0 * err_pos + 3.0 * err_vel
+            force = acc_des * cfg.CF2_MASS
+            force = force.at[2].add(cfg.CF2_MASS * cfg.GRAVITY)
+            ctrl = jnp.clip(force, -1.5, 1.5)
             d = d.replace(ctrl=ctrl)
             return mjx.step(self.mjx_model, d)
 

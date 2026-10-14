@@ -27,7 +27,7 @@ def generate_static_mjx_xml():
       <camera name="fpv_cam" pos="0.04 0 0.02" euler="1.57 0 -1.57" fovy="75"/>
     </body>
 
-    <body name="goal_marker" pos="0 -7.5 1.5" mocap="true">
+    <body name="goal_marker" pos="0 7.5 1.5" mocap="true">
       <geom name="goal_geom" type="sphere" size="{cfg.GOAL_THRESHOLD}" rgba="1 0 0 0.4" contype="0" conaffinity="0"/>
     </body>
 """
@@ -50,10 +50,9 @@ def generate_static_mjx_xml():
 
     xml += """  </worldbody>
   <actuator>
-    <motor name="m1" gear="0 0 1 0 0 0" site="drone_center" ctrllimited="true" ctrlrange="-1 1"/>
-    <motor name="m2" gear="0 0 0 1 0 0" site="drone_center" ctrllimited="true" ctrlrange="-1 1"/>
-    <motor name="m3" gear="0 0 0 0 1 0" site="drone_center" ctrllimited="true" ctrlrange="-1 1"/>
-    <motor name="m4" gear="0 0 0 0 0 1" site="drone_center" ctrllimited="true" ctrlrange="-1 1"/>
+    <motor name="thrust_x" gear="1 0 0 0 0 0" site="drone_center" ctrllimited="true" ctrlrange="-2 2"/>
+    <motor name="thrust_y" gear="0 1 0 0 0 0" site="drone_center" ctrllimited="true" ctrlrange="-2 2"/>
+    <motor name="thrust_z" gear="0 0 1 0 0 0" site="drone_center" ctrllimited="true" ctrlrange="-2 2"/>
   </actuator>
 </mujoco>"""
     return xml
