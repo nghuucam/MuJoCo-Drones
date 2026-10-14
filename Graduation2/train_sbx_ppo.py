@@ -35,7 +35,7 @@ def parse_args():
     parser.add_argument("--n-epochs", type=int, default=10, help="Số epochs cập nhật mạng (Mặc định: 10)")
     parser.add_argument("--gamma", type=float, default=0.99, help="Discount factor (Mặc định: 0.99)")
     parser.add_argument("--clip-range", type=float, default=0.2, help="PPO clip range (Mặc định: 0.2)")
-    parser.add_argument("--ent-coef", type=float, default=0.001, help="Entropy coefficient (Mặc định: 0.001)")
+    parser.add_argument("--ent-coef", type=float, default=0.01, help="Entropy coefficient (Mặc định: 0.01)")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     return parser.parse_args()
 

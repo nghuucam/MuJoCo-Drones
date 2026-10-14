@@ -35,7 +35,7 @@ def generate_static_mjx_xml():
     np.random.seed(42)
     for i, (ox, oy) in enumerate(cfg.FIXED_OBSTACLE_POSITIONS):
         xml += f"""
-    <body name="obs_{i}" pos="{ox} {oy} 0">
+    <body name="obs_{i}" pos="{ox} {oy} 0" mocap="true">
       <geom name="obs_col_{i}" type="cylinder" size="{cfg.CYLINDER_RADIUS} {cfg.CYLINDER_HEIGHT / 2}" pos="0 0 {cfg.CYLINDER_HEIGHT / 2}" rgba="0.6 0.35 0.15 1"/>
 """
         num_spikes = 8

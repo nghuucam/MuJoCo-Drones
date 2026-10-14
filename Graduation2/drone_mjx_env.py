@@ -68,10 +68,21 @@ class DroneMJXEnv:
         goal_y = random.uniform(r_goal_y, minval=y_min, maxval=y_max)
         goal = jnp.array([goal_x, goal_y, 1.5])
 
+        counts = jnp.array(cfg.OBSTACLE_COUNTS)
+        active_count = counts[level]
+
+        obs_xy = jnp.array(cfg.FIXED_OBSTACLE_POSITIONS)
+        indices = jnp.arange(15)
+        is_active = indices < active_count
+        z_pos = jnp.where(is_active, 0.0, -100.0)
+
+        obs_mpos = jnp.stack([obs_xy[:, 0], obs_xy[:, 1], z_pos], axis=1)
+        all_mpos = jnp.concatenate([goal[None, :], obs_mpos], axis=0)
+
         data = mjx.make_data(self.mjx_model)
         init_qpos = data.qpos.at[0:3].set(jnp.array([0.0, 11.0, 1.0]))
         init_qpos = init_qpos.at[3:7].set(jnp.array([0.7071068, 0.0, 0.0, -0.7071068]))
-        data = data.replace(qpos=init_qpos, qvel=jnp.zeros_like(data.qvel))
+        data = data.replace(qpos=init_qpos, qvel=jnp.zeros_like(data.qvel), mocap_pos=all_mpos)
 
         init_dist = jnp.linalg.norm(init_qpos[0:3] - goal)
 
@@ -158,7 +169,7 @@ class DroneMJXEnv:
 
         r_time = -0.002 * cfg.SUBSTEPS
         progress = jnp.maximum(0.0, state.best_dist - cur_dist)
-        r_prog = 1.0 * progress
+        r_prog = 3.0 * progress
         new_best = jnp.minimum(state.best_dist, cur_dist)
 
         win = cur_dist < cfg.GOAL_THRESHOLD
@@ -176,7 +187,7 @@ class DroneMJXEnv:
         r_win = jnp.where(win, 100.0 + 0.5 * remaining, 0.0)
         r_col = jnp.where(collision, -50.0, 0.0)
         r_map = jnp.where(over_map & (~win), -50.0, 0.0)
-        r_time_out = jnp.where(timeout & (~win), -50.0, 0.0)
+        r_time_out = jnp.where(timeout & (~win), -20.0, 0.0)
 
         total_r = r_time + r_prog + r_win + r_col + r_map + r_time_out
 
