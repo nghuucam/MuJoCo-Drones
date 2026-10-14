@@ -18,7 +18,7 @@ if HAS_JAX:
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Huấn luyện song song PPO cho Drone trên 100% GPU bằng MuJoCo MJX (Graduation2)")
+    parser = argparse.ArgumentParser(description="Benchmark tốc độ mô phỏng MJX bằng action ngẫu nhiên (KHÔNG huấn luyện). Huấn luyện thật: train_sbx_ppo.py")
     parser.add_argument("--exp-name", type=str, default="mjx_run", help="Tên thí nghiệm")
     parser.add_argument("--num-envs", type=int, default=1024, help="Số lượng môi trường song song trên GPU (Mặc định: 1024)")
     parser.add_argument("--level", type=int, default=6, help="Cấp độ cọc gai (0 đến 6, Mặc định: 6)")
@@ -32,7 +32,7 @@ def main():
     args = parse_args()
 
     print("=" * 80)
-    print("🚀 HUẤN LUYỆN DRONE SONG SONG HÀNG NGHÌN CON TRÊN GPU BẰNG MUJOCO MJX (GRADUATION2)")
+    print("⏱️ BENCHMARK TỐC ĐỘ MÔ PHỎNG MUJOCO MJX VỚI ACTION NGẪU NHIÊN (GRADUATION2)")
     print("=" * 80)
     print(f"🏷️ Thí nghiệm : {args.exp_name}")
     print(f"🎮 Số drone song song (Num Envs): {args.num_envs:,}")

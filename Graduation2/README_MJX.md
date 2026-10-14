@@ -1,30 +1,50 @@
 # HƯỚNG DẪN MÔ PHỎNG VÀ HUẤN LUYỆN DRONE SONG SONG BẰNG MUJOCO MJX (GRADUATION2)
 
-Thư mục **`Graduation2/`** là module nghiên cứu độc lập nhằm khai thác sức mạnh của **MuJoCo MJX (Google DeepMind)** và **JAX**:
-* Chạy song song **1.024 đến 4.096 drone cùng lúc trực tiếp trên GPU**.
-* Tốc độ mô phỏng đạt hàng chục nghìn đến hàng trăm nghìn **FPS**.
-* Hoàn toàn độc lập, không làm ảnh hưởng đến mã nguồn chính trong `Graduation/`.
+Thư mục **`Graduation2/`** là bản chạy GPU của `Graduation/`, dùng **MuJoCo MJX + JAX** để mô phỏng hàng trăm drone song song và huấn luyện PPO (SBX) với Curriculum 7 cấp độ. Không ảnh hưởng tới mã nguồn trong `Graduation/`.
 
 ---
 
-## 📁 Cấu Trúc Các File Trong `Graduation2/`
+## 📁 Cấu trúc file
 
-1. **`config_mjx.py`**: Định nghĩa thông số vật lý của Crazyflie 2.X, dải đích 7 cấp độ Curriculum và tọa độ tĩnh của 15 cọc gai.
-2. **`model_xml_builder.py`**: Tự động sinh mô hình MuJoCo XML tĩnh có 15 cọc gai và các cành gai nhọn để nạp vào MJX.
-3. **`drone_mjx_env.py`**: Môi trường vector hóa 100% bằng JAX (`jit` + `vmap`), tự động tính toán va chạm và hàm phần thưởng chuẩn trên GPU.
-4. **`mjx_gym_wrapper.py`**: Wrapper tương thích Gymnasium để cắm vào Stable-Baselines3 hoặc SBX khi cần.
-5. **`train_mjx_ppo.py`**: Script thực thi huấn luyện song song tốc độ cao.
+| File | Vai trò |
+|---|---|
+| `config_mjx.py` | Thông số mô phỏng, action, bộ điều khiển, 7 level curriculum, toạ độ 15 cọc gai |
+| `model_xml_builder.py` | Sinh XML: drone dạng chất điểm 27 g (3 motor lực theo trục thân), 15 cọc gai mocap, quả cầu đích |
+| `drone_mjx_env.py` | Môi trường JAX (`jit` + `vmap`): action → waypoint, bám quỹ đạo mượt, phát hiện va chạm, reward, auto-reset |
+| `apf_jax.py` | Gợi ý hướng bay APF (2 chiều cuối của observation) |
+| `env_numpy.py` | Bản NumPy tương đương của observation / waypoint / bộ điều khiển, dùng cho viewer trên CPU |
+| `mjx_gym_wrapper.py` | Bọc thành `VecEnv` cho SB3 / SBX |
+| `curriculum_callback.py` | Tự thăng cấp (≥ 80%) / hạ cấp (≤ 20%) theo 200 episode gần nhất |
+| `train_sbx_ppo.py` | **Script huấn luyện chính** |
+| `train_mjx_ppo.py` | Benchmark tốc độ mô phỏng bằng action ngẫu nhiên (không huấn luyện) |
+| `eval_mjx.py` | Xem 3D trên máy cá nhân (CPU), dùng model `.zip` hoặc phi công APF |
+| `warp_renderer.py` | Khung dự phòng cho render ảnh batch bằng Warp (chưa dùng) |
 
 ---
 
-## 🚀 Hướng Dẫn Chạy Thử Nghiệm
+## ⚙️ Cơ chế một bước
 
-### Bước 1: Cài đặt thư viện cần thiết (Tốt nhất trên Google Colab có GPU):
+1. Action `[a, b, d] ∈ [-1, 1]³` → hướng lệch so với heading hiện tại (±35°), góc nâng (±30°), độ dài bước 0.2–1.5 m.
+2. Drone quay heading theo hướng di chuyển (giống `Graduation/`), rồi bám quỹ đạo min-jerk tới waypoint trong `SUBSTEPS / SIM_FREQ = 0.5 s`.
+3. Thắng / va chạm được kiểm tra ở **từng substep**; va chạm xác định bằng `contact.dist < 0`.
+
+---
+
+## 🚀 Chạy
+
+### Huấn luyện trên Colab (GPU)
 ```bash
-pip install jax[cuda12] mujoco
+pip install sbx-rl flax "jax[cuda12]" mujoco mujoco-mjx
+python Graduation2/train_sbx_ppo.py --exp-name colab_curriculum_sbx --num-envs 128 --timesteps 5000000
 ```
 
-### Bước 2: Chạy thử nghiệm mô phỏng 1024 drone song song trên GPU:
+### Xem 3D trên máy cá nhân
+```bash
+python Graduation2/eval_mjx.py --level 3
+python Graduation2/eval_mjx.py --level 6 --model-path path/to/model.zip
+```
+
+### Benchmark tốc độ
 ```bash
 python Graduation2/train_mjx_ppo.py --num-envs 1024 --level 6 --timesteps 1000000
 ```

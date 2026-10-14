@@ -67,6 +67,7 @@ class MJXGymEnv(VecEnv):
         cols = np.asarray(info_jax["collision"]).reshape(-1)
         overs = np.asarray(info_jax["over_map"]).reshape(-1)
         dists = np.asarray(info_jax["dist"]).reshape(-1)
+        timeouts = np.asarray(info_jax["timeout"]).reshape(-1)
         term_obs = np.asarray(info_jax["terminal_observation"])
 
         infos = []
@@ -79,11 +80,13 @@ class MJXGymEnv(VecEnv):
                 "win": is_win,
                 "collision": is_col,
                 "over_map": bool(overs[i]),
+                "timeout": bool(timeouts[i]),
                 "dist": float(dists[i]),
                 "level": self.level
             }
             if dones[i]:
                 info_dict["terminal_observation"] = term_obs[i]
+                info_dict["TimeLimit.truncated"] = bool(timeouts[i])
             infos.append(info_dict)
 
         return obs, rewards, dones, infos
