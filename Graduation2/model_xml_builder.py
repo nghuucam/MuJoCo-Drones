@@ -6,10 +6,10 @@ import config_mjx as cfg
 def generate_static_mjx_xml():
     xml = f"""<mujoco model="drone_mjx_curriculum">
   <compiler angle="radian" coordinate="local" inertiafromgeom="true"/>
-  <option timestep="{1.0 / cfg.SIM_FREQ}" gravity="0 0 -{cfg.GRAVITY}" iterations="10" solver="CG"/>
+  <option timestep="{1.0 / cfg.SIM_FREQ}" gravity="0 0 -{cfg.GRAVITY}" iterations="5" solver="CG"/>
 
   <default>
-    <geom contype="1" conaffinity="1" condim="3" friction="1.0 0.1 0.1"/>
+    <geom condim="3" friction="1.0 0.1 0.1"/>
   </default>
 
   <visual>
@@ -18,11 +18,11 @@ def generate_static_mjx_xml():
 
   <worldbody>
     <light directional="true" pos="0 0 10" dir="0 0 -1" diffuse="0.8 0.8 0.8"/>
-    <geom name="floor" type="plane" size="10 25 0.1" rgba="0.85 0.85 0.85 1" pos="0 0 0"/>
+    <geom name="floor" type="plane" size="10 25 0.1" rgba="0.85 0.85 0.85 1" pos="0 0 0" contype="2" conaffinity="1"/>
 
     <body name="cf2" pos="0 11 1">
       <freejoint name="root"/>
-      <geom name="cf2_body" type="sphere" size="0.06" rgba="0.1 0.3 0.9 1" mass="{cfg.CF2_MASS}"/>
+      <geom name="cf2_body" type="sphere" size="0.06" rgba="0.1 0.3 0.9 1" mass="{cfg.CF2_MASS}" contype="1" conaffinity="2"/>
       <site name="drone_center" pos="0 0 0"/>
       <camera name="fpv_cam" pos="0.04 0 0.02" euler="1.57 0 -1.57" fovy="75"/>
     </body>
@@ -36,7 +36,7 @@ def generate_static_mjx_xml():
     for i, (ox, oy) in enumerate(cfg.FIXED_OBSTACLE_POSITIONS):
         xml += f"""
     <body name="obs_{i}" pos="{ox} {oy} 0" mocap="true">
-      <geom name="obs_col_{i}" type="cylinder" size="{cfg.CYLINDER_RADIUS} {cfg.CYLINDER_HEIGHT / 2}" pos="0 0 {cfg.CYLINDER_HEIGHT / 2}" rgba="0.6 0.35 0.15 1"/>
+      <geom name="obs_col_{i}" type="cylinder" size="{cfg.CYLINDER_RADIUS} {cfg.CYLINDER_HEIGHT / 2}" pos="0 0 {cfg.CYLINDER_HEIGHT / 2}" rgba="0.6 0.35 0.15 1" contype="2" conaffinity="1"/>
 """
         num_spikes = 8
         for s in range(num_spikes):
@@ -45,7 +45,7 @@ def generate_static_mjx_xml():
             sp_len = 0.5
             dx = (cfg.CYLINDER_RADIUS + sp_len / 2) * math.cos(angle)
             dy = (cfg.CYLINDER_RADIUS + sp_len / 2) * math.sin(angle)
-            xml += f"""      <geom name="spike_{i}_{s}" type="capsule" size="0.02 {sp_len/2}" pos="{dx} {dy} {z_s}" euler="1.57 {angle} 0" rgba="0.8 0.2 0.1 1"/>\n"""
+            xml += f"""      <geom name="spike_{i}_{s}" type="capsule" size="0.02 {sp_len/2}" pos="{dx} {dy} {z_s}" euler="1.57 {angle} 0" rgba="0.8 0.2 0.1 1" contype="2" conaffinity="1"/>\n"""
         xml += "    </body>\n"
 
     xml += """  </worldbody>
