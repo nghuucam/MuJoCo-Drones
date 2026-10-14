@@ -23,7 +23,9 @@ keywords = [
     "obstacle-avoidance",
     "autonomous-navigation",
     "computer-vision",
-    "fpv-camera"
+    "fpv-camera",
+    "mjx",
+    "jax"
 ]
 dependencies = [
     "gymnasium>=0.29.0",
@@ -38,15 +40,22 @@ dependencies = [
     "seaborn>=0.11.0",
     "tensorboard>=2.10.0",
     "tqdm>=4.60.0",
+    "optuna>=3.5.0",
+    "plotly>=5.15.0",
 ]
 
 [project.optional-dependencies]
 marl = [
     "pettingzoo>=1.24.0",
 ]
+mjx = [
+    "jax>=0.4.20",
+    "jaxlib>=0.4.20",
+    "flax>=0.8.0",
+]
 gpu = [
     "jax[cuda12]",
-    "mujoco-mjx>=3.0.0",
+    "flax>=0.8.0",
 ]
 dev = [
     "pytest>=7.0",
@@ -54,10 +63,12 @@ dev = [
 all = [
     "pettingzoo>=1.24.0",
     "pytest>=7.0",
+    "optuna>=3.5.0",
+    "plotly>=5.15.0",
 ]
 
 [tool.setuptools.packages.find]
-include = ["multi_drone_mujoco*", "Graduation*"]
+include = ["multi_drone_mujoco*", "Graduation*", "Graduation2*"]
 
 [tool.pytest.ini_options]
-testpaths = ["multi_drone_mujoco/tests", "Graduation"]
+testpaths = ["multi_drone_mujoco/tests", "Graduation", "Graduation2"]
