@@ -70,9 +70,13 @@ class MJXGymEnv(VecEnv):
 
         infos = []
         for i in range(self.num_envs):
+            is_win = bool(wins[i])
+            is_col = bool(cols[i])
+            is_succ = bool(is_win and not is_col)
             info_dict = {
-                "win": bool(wins[i]),
-                "collision": bool(cols[i]),
+                "is_success": is_succ,
+                "win": is_win,
+                "collision": is_col,
                 "over_map": bool(overs[i]),
                 "dist": float(dists[i]),
                 "level": self.level
