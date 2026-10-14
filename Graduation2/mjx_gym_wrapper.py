@@ -32,6 +32,7 @@ class MJXGymEnv(VecEnv):
             low=-1.0, high=1.0, shape=(self.env.act_dim,), dtype=np.float32
         )
         super().__init__(num_envs, obs_space, act_space)
+        self.render_mode = None
 
         self.rng = random.PRNGKey(42) if HAS_JAX else None
         self.state = None

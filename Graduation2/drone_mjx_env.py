@@ -175,7 +175,10 @@ class DroneMJXEnv:
         win = cur_dist < cfg.GOAL_THRESHOLD
         over_map = (jnp.abs(new_pos[0]) > cfg.X_LIMIT) | (jnp.abs(new_pos[1]) > cfg.Y_LIMIT) | (new_pos[2] < cfg.MIN_Z) | (new_pos[2] > cfg.MAX_Z)
 
-        ncon = data.ncon
+        if hasattr(data, "_impl") and hasattr(data._impl, "ncon"):
+            ncon = data._impl.ncon
+        else:
+            ncon = getattr(data, "ncon", 0)
         collision = ncon > 0
 
         new_step = state.step_count + 1
@@ -201,11 +204,51 @@ class DroneMJXEnv:
         )
         step_obs = self._get_obs(step_state)
 
-        rng, r_reset = random.split(state.rng)
-        reset_state, reset_obs = self._single_reset(r_reset, target_level)
+        rng, r_goal_x, r_goal_y = random.split(state.rng, 3)
 
-        next_state = jax.tree_util.tree_map(lambda r, s: jnp.where(done, r, s), reset_state, step_state)
-        obs = jnp.where(done, reset_obs, step_obs)
+        y_ranges = jnp.array(cfg.GOAL_Y_RANGES)
+        y_min = y_ranges[target_level, 0]
+        y_max = y_ranges[target_level, 1]
+
+        reset_goal_x = random.uniform(r_goal_x, minval=-2.0, maxval=2.0)
+        reset_goal_y = random.uniform(r_goal_y, minval=y_min, maxval=y_max)
+        reset_goal = jnp.array([reset_goal_x, reset_goal_y, 1.5])
+
+        counts = jnp.array(cfg.OBSTACLE_COUNTS)
+        active_count = counts[target_level]
+
+        obs_xy = jnp.array(cfg.FIXED_OBSTACLE_POSITIONS)
+        indices = jnp.arange(15)
+        is_active = indices < active_count
+        z_pos = jnp.where(is_active, 0.0, -100.0)
+
+        obs_mpos = jnp.stack([obs_xy[:, 0], obs_xy[:, 1], z_pos], axis=1)
+        reset_mpos = jnp.concatenate([reset_goal[None, :], obs_mpos], axis=0)
+
+        init_qpos = jnp.array([0.0, 11.0, 1.0, 0.7071068, 0.0, 0.0, -0.7071068])
+        init_dist = jnp.linalg.norm(init_qpos[0:3] - reset_goal)
+
+        next_qpos = jnp.where(done, init_qpos, data.qpos)
+        next_qvel = jnp.where(done, jnp.zeros_like(data.qvel), data.qvel)
+        next_mpos = jnp.where(done, reset_mpos, data.mocap_pos)
+        next_ctrl = jnp.where(done, jnp.zeros_like(data.ctrl), data.ctrl)
+
+        next_data = data.replace(qpos=next_qpos, qvel=next_qvel, mocap_pos=next_mpos, ctrl=next_ctrl)
+
+        next_step = jnp.where(done, 0, new_step)
+        next_goal = jnp.where(done, reset_goal, state.goal)
+        next_best = jnp.where(done, init_dist, new_best)
+        next_level = jnp.where(done, target_level, state.level)
+
+        next_state = DroneMJXState(
+            data=next_data,
+            step_count=next_step,
+            goal=next_goal,
+            best_dist=next_best,
+            level=next_level,
+            rng=rng
+        )
+        obs = self._get_obs(next_state)
 
         info = {
             "win": win,
