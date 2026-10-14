@@ -24,11 +24,8 @@ class MJXCurriculumCallback(BaseCallback):
         infos = self.locals.get("infos", [])
         for info in infos:
             if isinstance(info, dict):
-                is_win = info.get("win", False)
-                is_col = info.get("collision", False)
-                is_over = info.get("over_map", False)
-
-                if is_win or is_col or is_over:
+                if "terminal_observation" in info or info.get("win") or info.get("collision") or info.get("over_map"):
+                    is_win = bool(info.get("win", False))
                     self.episode_outcomes.append(1 if is_win else 0)
 
         if len(self.episode_outcomes) >= self.window_size:
