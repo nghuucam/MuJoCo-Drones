@@ -23,7 +23,7 @@ OBSTACLE_COUNTS = {
     3: 8,
     4: 10,
     5: 12,
-    6: 15,
+    6: 13,
 }
 
 OBSTACLE_POSITIONS = [
@@ -42,8 +42,6 @@ OBSTACLE_POSITIONS = [
     [-4.20, -5.00],
     [ 0.00, -5.50],
     [ 4.20, -5.00],
-    [-2.00, -8.00],
-    [ 2.00, -8.00],
 ]
 
 CYLINDER_RADIUS = 0.5
