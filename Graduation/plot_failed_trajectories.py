@@ -27,7 +27,7 @@ def plot_single_failed_episode(ep_data, save_path=None, show=False):
     steps = [pt["step"] for pt in traj]
 
     fig = plt.figure(figsize=(16, 7), dpi=120)
-    fig.suptitle(f"QUỸ ĐẠO MÀN THUA - EPISODE #{ep_idx} (Level {ep_data.get('level', 6)})\n"
+    fig.suptitle(f"QUỸ ĐẠO MÀN THUA - EPISODE #{ep_idx} (Level {ep_data.get('level', 5)})\n"
                  f"Kết quả: {reason} | Tổng bước: {ep_data.get('total_steps')} | Cách đích: {ep_data.get('final_distance', 0):.2f}m",
                  fontsize=14, fontweight="bold", color="darkred" if result_type == "collision" else "darkblue")
 

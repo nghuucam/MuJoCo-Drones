@@ -105,7 +105,7 @@ class DronePPOCurriculumEnv(BaseAviary):
         self._fpv_img_tk = None
 
     def set_level(self, level: int):
-        """Cập nhật cấp độ Curriculum (Level 0 đến 6)."""
+        """Cập nhật cấp độ Curriculum (Level 0 đến 5)."""
         max_level = len(config.GOAL_Y_RANGES) - 1
         self.current_level = int(np.clip(level, 0, max_level))
 

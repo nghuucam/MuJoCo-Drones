@@ -11,7 +11,6 @@ GOAL_Y_RANGES = {
     3: (-5.5, -4.5),
     4: (-5.5, -4.5),
     5: (-10.5, -9.5),
-    6: (-10.5, -9.5),
 }
 
 GOAL_THRESHOLD = 0.5
@@ -23,7 +22,6 @@ OBSTACLE_COUNTS = {
     3: 8,
     4: 10,
     5: 12,
-    6: 13,
 }
 
 OBSTACLE_POSITIONS = [
@@ -41,7 +39,6 @@ OBSTACLE_POSITIONS = [
 
     [-4.20, -5.00],
     [ 0.00, -5.50],
-    [ 4.20, -5.00],
 ]
 
 CYLINDER_RADIUS = 0.5

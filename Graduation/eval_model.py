@@ -32,7 +32,7 @@ def get_default_model_path():
 def evaluate():
     parser = argparse.ArgumentParser(description="Đánh giá / Xem thử Drone hoạt động với Model đã huấn luyện (Ver4)")
     parser.add_argument("--model-path",   type=str, default=None, help="Đường dẫn file model (.zip). Mặc định: tự tìm model mới nhất")
-    parser.add_argument("--level",        type=int, default=6,    help="Cấp độ Curriculum cần test (0 đến 6, Mặc định: 6)")
+    parser.add_argument("--level",        type=int, default=5,    help="Cấp độ Curriculum cần test (0 đến 5, Mặc định: 5)")
     parser.add_argument("--episodes",     type=int, default=5,    help="Số lượng episode test (Mặc định: 5)")
     parser.add_argument("--no-gui",       action="store_true",    help="Tắt giao diện 3D (Chỉ in kết quả log)")
     parser.add_argument("--show-marker",  action="store_true",    help="Bật lại con trỏ chấm trắng khổng lồ trên đầu Drone")
