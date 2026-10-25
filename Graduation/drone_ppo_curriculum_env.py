@@ -21,11 +21,11 @@ import config
 
 
 class DronePPOCurriculumEnv(BaseAviary):
-    """Môi trường Gymnasium nâng cấp cho Drone PPO tích hợp Curriculum Learning & Cột trụ Gai xương rồng (Ver4).
+    """Môi trường Gymnasium nâng cấp cho Drone PPO tích hợp Curriculum Learning & Cột trụ Gai xương rồng.
     
-    Tính năng nổi bật trong Ver4:
-    1. Curriculum Learning (4 Cấp độ): Tăng gấp đôi độ dài bản đồ trục Y cho Level 1->3 (lên tới 21m).
-    2. Cột trụ Gai xương rồng: Tăng số lượng vật cản (Level 6 lên tới 15 cột) 
+    Tính năng nổi bật:
+    1. Curriculum Learning (6 Cấp độ: Level 0 -> 5): Tăng dần độ dài bản đồ trục Y (lên tới 21.5m).
+    2. Cột trụ Gai xương rồng: Tăng số lượng vật cản (Level 5 lên tới 12 cột) 
        và tăng mật độ số lượng gai trên mỗi cột (10 đến 16 gai, dài 0.30 - 1.10m).
     3. Tọa độ đích: Thu hẹp bán kính đích GOAL_THRESHOLD xuống 0.5m (đòi hỏi drone bay 3D chuẩn xác).
     4. Không gian hành động: Khống chế góc lái alpha in [-35, +35] deg và beta in [-30, +30] deg nằm trọn trong camera FOV 75 deg.

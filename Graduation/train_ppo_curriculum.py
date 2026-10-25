@@ -80,7 +80,7 @@ class SingleEnvCurriculumCallback(BaseCallback):
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Huấn luyện PPO đơn tiến trình cho Drone với Curriculum Learning & Cột gai (Ver4)")
+    parser = argparse.ArgumentParser(description="Huấn luyện PPO đơn tiến trình cho Drone với Curriculum Learning & Cột gai")
     parser.add_argument("--timesteps", type=int, default=500000, help="Tổng số bước huấn luyện PPO (Mặc định: 500,000)")
     parser.add_argument("--save-freq", type=int, default=20000, help="Chu kỳ lưu checkpoint (Mặc định: 20,000 bước)")
     parser.add_argument("--gui", action="store_true", help="Bật cửa sổ đồ họa 3D MuJoCo GUI trực tiếp khi train")
@@ -121,7 +121,7 @@ def main():
     target_level = args.start_level if (args.start_level != 0 or not args.no_curriculum) else (len(config.GOAL_Y_RANGES) - 1)
 
     print("=" * 85)
-    print("🌵 HUẤN LUYỆN ĐƠN TIẾN TRÌNH PPO CURRICULUM + ẢNH FPV & TỌA ĐỘ ĐÍCH (GRADUATION / VER4)")
+    print("🌵 HUẤN LUYỆN ĐƠN TIẾN TRÌNH PPO CURRICULUM + ẢNH FPV & TỌA ĐỘ ĐÍCH (GRADUATION)")
     print("=" * 85)
     gpu_info = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "Không có GPU (Dùng CPU)"
     print(f"🚀 Thiết bị tính toán (Device): {args.device} | CUDA khả dụng: {torch.cuda.is_available()} [{gpu_info}]")
@@ -139,7 +139,7 @@ def main():
         print(f"🔄 Tiếp tục huấn luyện từ (Resume): {args.resume_model}")
     print("-" * 85)
 
-    print(f"⏳ Đang khởi tạo môi trường MuJoCo Ver4 (Độ khó: Level {target_level})...")
+    print(f"⏳ Đang khởi tạo môi trường MuJoCo (Độ khó: Level {target_level})...")
     raw_env = DronePPOCurriculumEnv(gui=args.gui)
     raw_env.set_level(target_level)
     env = Monitor(raw_env, filename=os.path.join(logs_dir, "single_monitor_ver4.csv"))
@@ -206,7 +206,7 @@ def main():
             tensorboard_log=logs_dir
         )
 
-    print("\n🏁 BẮT ĐẦU HUẤN LUYỆN ĐƠN TIẾN TRÌNH VER4 (Nhấn Ctrl+C để dừng an toàn bất kỳ lúc nào)...")
+    print("\n🏁 BẮT ĐẦU HUẤN LUYỆN ĐƠN TIẾN TRÌNH (Nhấn Ctrl+C để dừng an toàn bất kỳ lúc nào)...")
     print("=" * 85)
 
     start_t = time.time()
@@ -219,7 +219,7 @@ def main():
         model.save(final_path)
         elapsed = time.time() - start_t
         print("\n" + "=" * 85)
-        print(f"🎉 HUẤN LUYỆN VER4 HOÀN TẤT THÀNH CÔNG sau {elapsed / 60:.2f} phút!")
+        print(f"🎉 HUẤN LUYỆN HOÀN TẤT THÀNH CÔNG sau {elapsed / 60:.2f} phút!")
         print(f"💾 Model đã được lưu tại: {final_path}")
         print("=" * 85)
     except KeyboardInterrupt:

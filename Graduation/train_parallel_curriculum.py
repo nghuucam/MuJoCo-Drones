@@ -97,7 +97,7 @@ def make_env(rank: int, seed: int = 0, initial_level: int = 0):
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Huấn luyện song song PPO cho Drone với Curriculum Learning & Cột trụ Gai (Ver4)")
+    parser = argparse.ArgumentParser(description="Huấn luyện song song PPO cho Drone với Curriculum Learning & Cột trụ Gai")
     parser.add_argument("--exp-name", type=str, default=None, help="Tên thí nghiệm riêng biệt để cách ly thư mục models, logs và flight_log (Ví dụ: run1, optuna_tuned)")
     parser.add_argument("--num-cpu", type=int, default=4, help="Số lượng CPU workers chạy song song (Mặc định: 4)")
     parser.add_argument("--timesteps", type=int, default=3000000, help="Tổng số bước huấn luyện PPO (Mặc định: 3,000,000)")
@@ -154,7 +154,7 @@ def main():
     os.makedirs(logs_dir, exist_ok=True)
 
     print("=" * 85)
-    print("🌵 HUẤN LUYỆN SONG SONG PPO CURRICULUM + ẢNH FPV & TỌA ĐỘ ĐÍCH (GRADUATION / VER4)")
+    print("🌵 HUẤN LUYỆN SONG SONG PPO CURRICULUM + ẢNH FPV & TỌA ĐỘ ĐÍCH (GRADUATION)")
     print("=" * 85)
     if args.exp_name:
         print(f"🏷️ Tên thí nghiệm (Exp Name): {args.exp_name} (Thư mục độc lập)")
@@ -179,7 +179,7 @@ def main():
         print(f"🔄 Tiếp tục huấn luyện từ (Resume): {args.resume_model}")
     print("-" * 85)
 
-    print(f"⏳ Đang khởi tạo {args.num_cpu} tiến trình môi trường MuJoCo Ver4...")
+    print(f"⏳ Đang khởi tạo {args.num_cpu} tiến trình môi trường MuJoCo...")
     env_fns = [make_env(rank=i, seed=42, initial_level=target_level) for i in range(args.num_cpu)]
     vec_env = SubprocVecEnv(env_fns)
     vec_env = VecMonitor(vec_env, filename=monitor_log_path)
@@ -248,7 +248,7 @@ def main():
         )
 
     mode_str = f"KHÓA CỨNG LEVEL {target_level} (NO CURRICULUM)" if args.no_curriculum else "CURRICULUM DYNAMIC"
-    print(f"\n🏁 BẮT ĐẦU HUẤN LUYỆN VER4 [{mode_str}] (Nhấn Ctrl+C để dừng an toàn bất kỳ lúc nào)...")
+    print(f"\n🏁 BẮT ĐẦU HUẤN LUYỆN [{mode_str}] (Nhấn Ctrl+C để dừng an toàn bất kỳ lúc nào)...")
     print("=" * 85)
 
     start_t = time.time()
@@ -261,7 +261,7 @@ def main():
         model.save(final_path)
         elapsed = time.time() - start_t
         print("\n" + "=" * 85)
-        print(f"🎉 HUẤN LUYỆN VER4 HOÀN TẤT THÀNH CÔNG sau {elapsed / 60:.2f} phút!")
+        print(f"🎉 HUẤN LUYỆN HOÀN TẤT THÀNH CÔNG sau {elapsed / 60:.2f} phút!")
         print(f"💾 Model đã được lưu tại: {final_path}")
         print("=" * 85)
     except KeyboardInterrupt:

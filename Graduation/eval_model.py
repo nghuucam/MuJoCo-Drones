@@ -30,7 +30,7 @@ def get_default_model_path():
 
 
 def evaluate():
-    parser = argparse.ArgumentParser(description="Đánh giá / Xem thử Drone hoạt động với Model đã huấn luyện (Ver4)")
+    parser = argparse.ArgumentParser(description="Đánh giá / Xem thử Drone hoạt động với Model đã huấn luyện")
     parser.add_argument("--model-path",   type=str, default=None, help="Đường dẫn file model (.zip). Mặc định: tự tìm model mới nhất")
     parser.add_argument("--level",        type=int, default=5,    help="Cấp độ Curriculum cần test (0 đến 5, Mặc định: 5)")
     parser.add_argument("--episodes",     type=int, default=5,    help="Số lượng episode test (Mặc định: 5)")
@@ -44,7 +44,7 @@ def evaluate():
     model_path = args.model_path if (args.model_path and os.path.exists(args.model_path)) else get_default_model_path()
 
     print("=" * 80)
-    print("🛸 ĐÁNH GIÁ MÔ HÌNH DRONE HUẤN LUYỆN VER4 (EVALUATION)")
+    print("🛸 ĐÁNH GIÁ MÔ HÌNH DRONE HUẤN LUYỆN (EVALUATION)")
     print("=" * 80)
     print(f"📦 Đang nạp Model từ: {model_path}")
 

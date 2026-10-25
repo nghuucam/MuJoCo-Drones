@@ -10,14 +10,13 @@
 3. [Environment Setup with Anaconda](#3-environment-setup-with-anaconda)
 4. [Verification of `pyproject.toml` Dependencies](#4-verification-of-pyprojecttoml-dependencies)
 5. [Detailed Guide to `Graduation/` Scripts, Parameters & Execution](#5-detailed-guide-to-graduation-scripts-parameters--execution)
-   - [5.1. `train_parallel_curriculum.py` (Multi-Worker Parallel Training)](#51-train_parallel_curriculumpy---parallel-multi-processing-training)
-   - [5.2. `train_ppo_curriculum.py` (Single-Worker Debugging)](#52-train_ppo_curriculumpy---single-worker-debugging)
-   - [5.3. `tune_optuna.py` (Automated Hyperparameter Optimization)](#53-tune_optunapy---automated-hyperparameter-tuning-via-optuna)
-   - [5.4. `eval_model.py` (Model Evaluation & Failure Recording)](#54-eval_modelpy---3d-visual-evaluation--failure-buffer-logger)
-   - [5.5. `plot_failed_trajectories.py` (3D/2D Failed Trajectory Visualization)](#55-plot_failed_trajectoriespy---failed-trajectory-plotter)
-   - [5.6. `drone_ppo_curriculum_env.py` (Core Gymnasium Environment)](#56-drone_ppo_curriculum_envpy---core-gymnasium-environment)
-   - [5.7. `config.py` (Global Parameters & Map Layout)](#57-configpy---system-configurations--curriculum-ranges)
-   - [5.8. `analyze_flight_log.py` (Flight Log CSV Analytics)](#58-analyze_flight_logpy---flight-log-analytics)
+   - [5.1. `train_parallel_curriculum.py` (Multi-Worker Parallel Training)](#51-train_parallel_curriculumpy--parallel-multi-processing-training)
+   - [5.2. `train_ppo_curriculum.py` (Single-Worker Debugging)](#52-train_ppo_curriculumpy--single-worker-debugging)
+   - [5.3. `eval_model.py` (Model Evaluation & Failure Recording)](#53-eval_modelpy--3d-visual-evaluation--failure-buffer-logger)
+   - [5.4. `plot_failed_trajectories.py` (3D/2D Failed Trajectory Visualization)](#54-plot_failed_trajectoriespy--failed-trajectory-plotter)
+   - [5.5. `drone_ppo_curriculum_env.py` (Core Gymnasium Environment)](#55-drone_ppo_curriculum_envpy--core-gymnasium-environment)
+   - [5.6. `config.py` (Global Parameters & Map Layout)](#56-configpy--system-configurations--curriculum-ranges)
+   - [5.7. `analyze_flight_log.py` (Flight Log CSV Analytics)](#57-analyze_flight_logpy--flight-log-analytics)
 6. [Streamlined Reward Function Specification](#6-streamlined-reward-function-specification)
 
 ---
@@ -33,7 +32,7 @@ This repository presents an end-to-end research and engineering framework for au
 
 * **📁 `Graduation/` (Current Production Phase - Core Thesis Focus):**
   * Full transition to **PPO (Proximal Policy Optimization)** with **Continuous Action Spaces** formulated in the Aviation Body Frame ($\alpha, \beta, d$).
-  * Implementation of **Curriculum Learning (7 Progressive Difficulty Levels)** scaling the target range from 6m to 21m and increasing procedurally generated spiked obstacles from 0 to 15 pillars.
+  * Implementation of **Curriculum Learning (6 Progressive Difficulty Levels: Level 0 to Level 5)** scaling the target range up to 21.5m and increasing procedurally generated spiked obstacles from 0 to 12 pillars.
   * Multimodal sensory fusion integrating **64x64 RGB FPV camera feeds** (CNN feature extractor), **18-dimensional kinematic telemetry** (MLP policy), and **Artificial Potential Field (APF) guidance hints**.
 
 ---
@@ -52,26 +51,26 @@ MuJoCo-Drones/
 │   ├── drone_ppo_curriculum_env.py     # Gymnasium environment (MuJoCo C-API + FPV + Spiked Pillars)
 │   ├── train_parallel_curriculum.py    # Multi-processing parallel training (SubprocVecEnv)
 │   ├── train_ppo_curriculum.py         # Single-worker training designed for debugging
-│   ├── tune_optuna.py                  # Automated PPO hyperparameter tuning (Bayesian TPE)
 │   ├── eval_model.py                   # Model evaluation, telemetry monitor & failed trajectory logger
 │   ├── plot_failed_trajectories.py     # 3D and 2D top-down failed trajectory plotter
 │   ├── flight_logger_callback.py       # Custom SB3 callback logging flight telemetry to CSV
 │   ├── analyze_flight_log.py           # Post-training CSV analytics, reward & win-rate curve plotting
 │   ├── models/                         # Checkpoint weights and final exported policies (.zip)
-│   ├── logs/                           # TensorBoard event files, CSV logs & trajectory figures
-│   └── optuna_results/                 # SQLite database & interactive HTML Plotly reports
+│   └── logs/                           # TensorBoard event files, CSV logs & trajectory figures
 │
 ├── OldCode/                            # LEGACY CODEBASE (FOR BENCHMARKING & PROGRESS COMPARISON)
-│   ├── DQN/                            # DQN implementation (Single, Parallel, Optimize, Analyze)
+│   ├── DQN/                            # DQN implementation (Single, Parallel, Optimize, Analyze, Test)
 │   │   ├── Single/                     # Single-worker DQN training
 │   │   ├── Parallel/                   # Parallel DQN training
 │   │   ├── Optimize/                   # DQN optimization scripts
-│   │   └── Analyze/                    # Legacy DQN analysis scripts & plots
+│   │   ├── Analyze/                    # Legacy DQN analysis scripts & plots
+│   │   └── Test/                       # DQN evaluation & testing scripts
 │   └── D3QN/                           # Dueling Double DQN implementation
 │       ├── Single/                     # Single-worker D3QN training
 │       ├── Parallel/                   # Parallel D3QN training
 │       ├── Optimize/                   # D3QN optimization scripts
-│       └── Analyze/                    # Legacy D3QN analysis scripts & plots
+│       ├── Analyze/                    # Legacy D3QN analysis scripts & plots
+│       └── Test/                       # D3QN evaluation & testing scripts
 │
 └── multi_drone_mujoco/                 # UNDERLYING DRONE SIMULATION ENGINE
     ├── assets/cf2/                     # Official Crazyflie 2.X 3D meshes (.obj) & physical attributes
@@ -122,7 +121,7 @@ pip install -e .
 
 ## 4. Verification of `pyproject.toml` Dependencies
 
-The [`pyproject.toml`](file:///c:/KLTN/MuJoCo-Drones/pyproject.toml) configuration has been thoroughly verified and includes **100% of the required libraries** for training, hyperparameter tuning, simulation, and data analytics:
+The [`pyproject.toml`](file:///c:/KLTN/MuJoCo-Drones/pyproject.toml) configuration includes all required libraries for training, simulation, and data analytics:
 
 | Category | Library in `pyproject.toml` | Version | Purpose |
 | :--- | :--- | :---: | :--- |
@@ -131,7 +130,6 @@ The [`pyproject.toml`](file:///c:/KLTN/MuJoCo-Drones/pyproject.toml) configurati
 | **Computer Vision** | `Pillow` | $\ge 9.0.0$ | FPV camera frame rendering and array preprocessing. |
 | **Math & Data** | `numpy`<br>`scipy`<br>`pandas` | $\ge 1.21.0$<br>$\ge 1.9.0$<br>$\ge 1.3.0$ | Linear algebra, spatial transformations, tabular flight logging. |
 | **Visualization** | `matplotlib`<br>`seaborn`<br>`tensorboard` | $\ge 3.5.0$<br>$\ge 0.11.0$<br>$\ge 2.10.0$ | 3D/2D trajectory plotting, real-time loss/reward telemetry tracking. |
-| **Optimization** | `optuna`<br>`plotly` | $\ge 3.5.0$<br>$\ge 5.15.0$ | Bayesian TPE hyperparameter optimization & interactive HTML graphs. |
 | **Utilities** | `tqdm` | $\ge 4.60.0$ | Console progress tracking. |
 
 ---
@@ -167,8 +165,8 @@ cd Graduation
 | `--gae-lambda` | `float` | `0.95` | Generalized Advantage Estimation factor. |
 | `--target-kl` | `float` | `0.05` | Target KL divergence threshold for early stopping. |
 | `--device` | `str` | `auto` | Computational backend: `auto`, `cuda`, or `cpu`. |
-| `--no-curriculum` | `flag` | `False` | **Disables curriculum learning**, locking the environment at maximum difficulty (Level 6). |
-| `--start-level` | `int` | `0` | Starting difficulty level (0 to 6). |
+| `--no-curriculum` | `flag` | `False` | **Disables curriculum learning**, locking the environment at maximum difficulty (Level 5). |
+| `--start-level` | `int` | `0` | Starting difficulty level (0 to 5). |
 
 * **Execution Examples:**
 
@@ -176,10 +174,10 @@ cd Graduation
 # 1. Full training with Curriculum Learning from scratch (6 CPUs, isolated experiment name 'run_curr'):
 python train_parallel_curriculum.py --exp-name run_curr --num-cpu 6 --timesteps 3000000 --save-freq 500000
 
-# 2. Fine-tuning an existing model on Level 6 only with Optuna-tuned hyperparameters:
-python train_parallel_curriculum.py --exp-name fine_tune_level6 \
+# 2. Fine-tuning an existing model on Level 5 only:
+python train_parallel_curriculum.py --exp-name fine_tune_level5 \
   --resume-model "[Path/to/your/model.zip]" \
-  --start-level 6 --no-curriculum \
+  --start-level 5 --no-curriculum \
   --lr 6e-5 --n-epochs 8 --clip-range 0.15 --ent-coef 0.0002 --gamma 0.98 \
   --num-cpu 6 --timesteps 1000000
 ```
@@ -196,29 +194,7 @@ python train_ppo_curriculum.py --timesteps 500000 --lr 1e-4 --batch-size 64 --st
 
 ---
 
-### 5.3. `tune_optuna.py` — Automated Hyperparameter Tuning via Optuna
-
-* **Function:** Utilizes Bayesian Tree-structured Parzen Estimator (TPE) sampling to identify optimal PPO hyperparameters (`learning_rate`, `n_epochs`, `clip_range`, `ent_coef`, `gamma`, `gae_lambda`). Implements **MedianPruner** to terminate unpromising trials early, and supports warm-starting from pre-trained checkpoints via `--resume-model`.
-* **CLI Parameter Reference:**
-
-| Parameter | Default | Description |
-| :--- | :---: | :--- |
-| `--resume-model` | `None` | Path to pre-trained model to optimize parameters directly on Level 6. |
-| `--start-level` | `0` | Difficulty level for tuning trials (recommended: `6`). |
-| `--n-trials` | `15` | Total number of optimization trials. |
-| `--trial-timesteps`| `100000` | Sample timesteps per trial (20,000 to 50,000 for rapid exploration). |
-| `--num-cpu` | `4` | Parallel CPU workers allocated per trial. |
-| `--study-name` | `drone_ppo_optuna_study` | Name of the SQLite-backed study. |
-
-* **Execution:**
-```bash
-python tune_optuna.py --resume-model "[Path/to/your/model.zip]" --start-level 6 --num-cpu 4 --n-trials 10 --trial-timesteps 30000
-```
-*Outputs are saved to `optuna_results/optuna_study.db`, alongside interactive HTML plots (`param_importances.html`, `parallel_coordinate.html`, `optimization_history.html`).*
-
----
-
-### 5.4. `eval_model.py` — 3D Visual Evaluation & Failure Buffer Logger
+### 5.3. `eval_model.py` — 3D Visual Evaluation & Failure Buffer Logger
 
 * **Function:** Loads trained policy weights to evaluate flight performance over $N$ episodes. Features real-time 3D MuJoCo rendering, FPV camera display, comprehensive failure categorizations (Collision, Over-map, Timeout), and **automatically saves complete trajectory data of all failed episodes** to a JSON file.
 * **CLI Parameter Reference:**
@@ -226,7 +202,7 @@ python tune_optuna.py --resume-model "[Path/to/your/model.zip]" --start-level 6 
 | Parameter | Default | Description |
 | :--- | :---: | :--- |
 | `--model-path` | Auto-detect | Path to target `.zip` model file. |
-| `--level` | `6` | Test curriculum level (0 to 6). |
+| `--level` | `5` | Test curriculum level (0 to 5). |
 | `--episodes` | `5` | Number of evaluation episodes. |
 | `--no-gui` | `False` | Disables 3D GUI for high-throughput headless testing. |
 | `--quiet` | `False` | Suppresses per-step telemetry console tables. |
@@ -235,16 +211,16 @@ python tune_optuna.py --resume-model "[Path/to/your/model.zip]" --start-level 6 
 * **Execution Examples:**
 
 ```bash
-# Interactive evaluation of 10 episodes on Level 6 with 3D GUI:
-python eval_model.py --model-path "[Đường dẫn model của bạn / Path to your model.zip]" --level 6 --episodes 10
+# Interactive evaluation of 10 episodes on Level 5 with 3D GUI:
+python eval_model.py --model-path "[Đường dẫn model của bạn / Path to your model.zip]" --level 5 --episodes 10
 
 # High-throughput headless evaluation (50 episodes) to record failure trajectories:
-python eval_model.py --model-path "[Đường dẫn model của bạn / Path to your model.zip]" --level 6 --episodes 50 --no-gui --quiet
+python eval_model.py --model-path "[Đường dẫn model của bạn / Path to your model.zip]" --level 5 --episodes 50 --no-gui --quiet
 ```
 
 ---
 
-### 5.5. `plot_failed_trajectories.py` — Failed Trajectory Plotter
+### 5.4. `plot_failed_trajectories.py` — Failed Trajectory Plotter
 
 * **Function:** Reads `failed_trajectories.json` generated by `eval_model.py` and produces publication-quality dual-pane visual analytics for each failed flight:
   * **Left Subplot (3D Space):** Illustrates pillar cylinders, protruding spikes, Start coordinate, Goal coordinate, drone flight trajectory, and the exact collision point.
@@ -264,33 +240,33 @@ python plot_failed_trajectories.py --input logs/failed_trajectories.json --show
 
 ---
 
-### 5.6. `drone_ppo_curriculum_env.py` — Core Gymnasium Environment
+### 5.5. `drone_ppo_curriculum_env.py` — Core Gymnasium Environment
 
 * **Function:** Implements the core simulation environment:
   * **Observation Space:** Multimodal `Dict({"rgb": Box(64,64,3), "state": Box(18,)})`.
   * **Action Space:** Continuous `Box(3,)` defining $[\alpha, \beta, d]$ in the Body Frame.
-  * **Procedural Spiked Pillars:** MuJoCo XML generated on reset with randomized heights and spike distributions.
+  * **Procedural Spiked Pillars:** MuJoCo XML generated on reset with randomized spike distributions.
   * **Guidance Fields:** Artificial Potential Field (APF) calculation providing real-time attractive/repulsive yaw & pitch cues.
 
 ---
 
-### 5.7. `config.py` — System Configurations & Curriculum Ranges
+### 5.6. `config.py` — System Configurations & Curriculum Ranges
 
 * **Function:** Central repository for global constants and hardware simulation limits:
-  * `GOAL_Y_RANGES`: Target distance ranges per level (Level 0: $[-6, -5]$ up to Level 6: $[-21, -19]$).
-  * `OBSTACLE_COUNTS`: Obstacle count scaling per level (Level 0: 0 up to Level 6: 15 pillars).
-  * `MAX_STEPS`: Episode step truncation ceiling (`140` steps).
+  * `GOAL_Y_RANGES`: Target Y-coordinate ranges per level (Level 0: $[7.5, 8.5]$ up to Level 5: $[-10.5, -9.5]$).
+  * `OBSTACLE_COUNTS`: Obstacle count scaling per level (Level 0: 0 up to Level 5: 12 pillars).
+  * `MAX_STEPS`: Episode step truncation ceiling (`100` steps).
   * `COLLISION_MARGIN`: High-precision obstacle proximity margin (`0.05m`).
   * `IMG_WIDTH`, `IMG_HEIGHT`: FPV camera rendering resolution (`64x64`).
 
 ---
 
-### 5.8. `analyze_flight_log.py` — Flight Log Analytics
+### 5.7. `analyze_flight_log.py` — Flight Log Analytics
 
 * **Function:** Parses flight logs (`drone_flight_log_parallel_ver4.csv`) generated during training to compute success rates, collision distributions, and average rewards across curriculum levels, plotting cumulative learning curves.
 * **Execution:**
 ```bash
-python analyze_flight_log.py --log logs/drone_flight_log_parallel_ver4.csv
+python analyze_flight_log.py --file logs/drone_flight_log_parallel_ver4.csv
 ```
 
 ---
@@ -307,7 +283,7 @@ $$\mathcal{R}_{\text{substep}} = R_{\text{time}} + R_{\text{progress}} + R_{\tex
 4. **$R_{\text{proximity}} = -0.005:$** Hazard warning penalty activated when drone distance to any pillar or spike surface falls below $0.1\text{m}$.
 5. **$R_{\text{altitude}} = -0.01:$** Boundary penalty applied when grazing the floor envelope ($z \le 0.85\text{m}$) or ceiling limit ($z \ge 2.45\text{m}$).
 6. **$R_{\text{terminal}}:$** 
-   * **Goal Reached ($Win$):** $+100.0$ points.
+   * **Goal Reached ($Win$):** $+100.0 + 0.5 \times \text{remaining\_steps}$ points.
    * **Collision ($Collision$):** $-50.0$ points.
    * **Out of Bounds ($Over Map$):** $-50.0$ points.
    * **Timeout ($Truncated$):** $-50.0$ points.

@@ -32,7 +32,7 @@ def analyze(file_path: str, window_size: int = 50, save_fig: bool = True, show_f
     avg_reward = episodes_summary['AccumReward'].mean()
 
     print("\n" + "=" * 55)
-    print("      📊 BÁO CÁO TỔNG KẾT NHẬT KÝ BAY DRONE (VER2)")
+    print("      📊 BÁO CÁO TỔNG KẾT NHẬT KÝ BAY DRONE")
     print("=" * 55)
     print(f"📌 Tổng số tập (Episodes)       : {total_episodes:,}")
     print(f"🏆 Tỷ lệ tới đích (Win Rate)    : {overall_win_rate:.2f}%")
@@ -78,9 +78,9 @@ def analyze(file_path: str, window_size: int = 50, save_fig: bool = True, show_f
 
     if 'Level' in episodes_summary.columns:
         axes[2].step(episodes_summary['Eposide'], episodes_summary['Level'], color='purple', linewidth=2, where='post', label='Cấp độ Curriculum')
-        axes[2].set_title('Tiến trình Cấp độ Curriculum (Level 0 -> 3)')
+        axes[2].set_title('Tiến trình Cấp độ Curriculum (Level 0 -> 5)')
         axes[2].set_ylabel('Cấp độ')
-        axes[2].set_yticks([0, 1, 2, 3])
+        axes[2].set_yticks([0, 1, 2, 3, 4, 5])
         axes[2].grid(True, linestyle='--', alpha=0.6)
         axes[2].legend(loc='upper left')
 
