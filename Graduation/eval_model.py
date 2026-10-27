@@ -41,6 +41,10 @@ def evaluate():
                         help="Đường dẫn lưu file JSON các quỹ đạo thất bại")
     args = parser.parse_args()
 
+    max_level = len(config.GOAL_Y_RANGES) - 1
+    if not 0 <= args.level <= max_level:
+        parser.error(f"--level phải nằm trong khoảng 0 đến {max_level} (nhận được: {args.level})")
+
     model_path = args.model_path if (args.model_path and os.path.exists(args.model_path)) else get_default_model_path()
 
     print("=" * 80)

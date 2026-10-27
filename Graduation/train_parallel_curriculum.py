@@ -121,7 +121,13 @@ def parse_args():
     parser.add_argument("--threshold-advance", type=float, default=0.8, help="Tỷ lệ thắng tối thiểu để thăng cấp Level (Mặc định: 0.8)")
     parser.add_argument("--threshold-retreat", type=float, default=0.2, help="Tỷ lệ thắng tối thiểu để không bị hạ Level (Mặc định: 0.2)")
 
-    return parser.parse_args()
+    args = parser.parse_args()
+
+    max_level = len(config.GOAL_Y_RANGES) - 1
+    if not 0 <= args.start_level <= max_level:
+        parser.error(f"--start-level phải nằm trong khoảng 0 đến {max_level} (nhận được: {args.start_level})")
+
+    return args
 
 
 def main():
