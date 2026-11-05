@@ -32,7 +32,7 @@ This repository presents an end-to-end research and engineering framework for au
 
 * **📁 `Graduation/` (Current Production Phase - Core Thesis Focus):**
   * Full transition to **PPO (Proximal Policy Optimization)** with **Continuous Action Spaces** formulated in the Aviation Body Frame ($\alpha, \beta, d$).
-  * Implementation of **Curriculum Learning (6 Progressive Difficulty Levels: Level 0 to Level 5)** scaling the target range up to 21.5m and increasing procedurally generated spiked obstacles from 0 to 12 pillars.
+  * Implementation of **Curriculum Learning (6 Progressive Difficulty Levels: Level 0 to Level 5)** scaling the target range up to 21.5m and increasing procedurally generated spiked obstacles from 0 to 13 pillars.
   * Multimodal sensory fusion integrating **64x64 RGB FPV camera feeds** (CNN feature extractor), **18-dimensional kinematic telemetry** (MLP policy), and **Artificial Potential Field (APF) guidance hints**.
 
 ---
@@ -253,8 +253,8 @@ python plot_failed_trajectories.py --input logs/failed_trajectories.json --show
 ### 5.6. `config.py` — System Configurations & Curriculum Ranges
 
 * **Function:** Central repository for global constants and hardware simulation limits:
-  * `GOAL_Y_RANGES`: Target Y-coordinate ranges per level (Level 0: $[7.5, 8.5]$ up to Level 5: $[-10.5, -9.5]$).
-  * `OBSTACLE_COUNTS`: Obstacle count scaling per level (Level 0: 0 up to Level 5: 12 pillars).
+  * `GOAL_Y_RANGES`: Target Y-coordinate ranges per level (Level 0: $[7.5, 8.5]$ up to Level 5: $[-10.0, -9.0]$).
+  * `OBSTACLE_COUNTS`: Obstacle count scaling per level (Level 0: 0 up to Level 5: 13 pillars).
   * `MAX_STEPS`: Episode step truncation ceiling (`100` steps).
   * `COLLISION_MARGIN`: High-precision obstacle proximity margin (`0.05m`).
   * `IMG_WIDTH`, `IMG_HEIGHT`: FPV camera rendering resolution (`64x64`).

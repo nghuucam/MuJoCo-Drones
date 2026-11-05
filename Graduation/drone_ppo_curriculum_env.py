@@ -25,8 +25,8 @@ class DronePPOCurriculumEnv(BaseAviary):
     
     Tính năng nổi bật:
     1. Curriculum Learning (6 Cấp độ: Level 0 -> 5): Tăng dần độ dài bản đồ trục Y (lên tới 21.5m).
-    2. Cột trụ Gai xương rồng: Tăng số lượng vật cản (Level 5 lên tới 12 cột) 
-       và tăng mật độ số lượng gai trên mỗi cột (10 đến 16 gai, dài 0.30 - 1.10m).
+    2. Cột trụ Gai xương rồng: Tăng số lượng vật cản (Level 5 lên tới 13 cột) 
+       và tăng mật độ số lượng gai trên mỗi cột (20 đến 32 gai, dài 0.30 - 1.10m).
     3. Tọa độ đích: Thu hẹp bán kính đích GOAL_THRESHOLD xuống 0.5m (đòi hỏi drone bay 3D chuẩn xác).
     4. Không gian hành động: Khống chế góc lái alpha in [-35, +35] deg và beta in [-30, +30] deg nằm trọn trong camera FOV 75 deg.
     """
