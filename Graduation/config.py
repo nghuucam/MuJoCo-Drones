@@ -10,7 +10,7 @@ GOAL_Y_RANGES = {
     2: (-0.5, 0.5),
     3: (-5.5, -4.5),
     4: (-5.5, -4.5),
-    5: (-10.5, -9.5),
+    5: (-10.0, -9.0),
 }
 
 GOAL_THRESHOLD = 0.5
@@ -21,7 +21,7 @@ OBSTACLE_COUNTS = {
     2: 6,
     3: 8,
     4: 10,
-    5: 12,
+    5: 13,
 }
 
 OBSTACLE_POSITIONS = [
@@ -39,6 +39,8 @@ OBSTACLE_POSITIONS = [
 
     [-4.20, -5.00],
     [ 0.00, -5.50],
+
+    [ 4.20, -5.00],
 ]
 
 CYLINDER_RADIUS = 0.5
@@ -46,8 +48,10 @@ FIXED_OBSTACLE_HEIGHT = 3.0
 MIN_OBSTACLE_HEIGHT = 3.0
 MAX_OBSTACLE_HEIGHT = 3.0
 
+
 SPIKES_PER_PILLAR_MIN = 10
 SPIKES_PER_PILLAR_MAX = 16
+
 SPIKE_RADIUS_MIN = 0.05
 SPIKE_RADIUS_MAX = 0.20
 SPIKE_LENGTH_MIN = 0.30
