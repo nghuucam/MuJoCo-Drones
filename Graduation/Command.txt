@@ -29,7 +29,7 @@ echo xfce4-session > ~/.xsession
 sudo systemctl restart xrdp
 sudo passwd ubuntu
 
-git clone -b ver3 https://github.com/nghuucam/MuJoCo-Drones.git
+git clone -b ver6_clean https://github.com/nghuucam/MuJoCo-Drones.git
 cd MuJoCo-Drones/
 pip install -e .
 
