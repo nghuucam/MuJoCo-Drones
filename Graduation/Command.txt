@@ -1,0 +1,90 @@
+python train_parallel_ppo.py --exp-name Default --timesteps 5000000
+python train_parallel_sac.py --exp-name No-curriculum --timesteps 5000000 --no-curriculum --start-level 5
+python train_parallel_sac.py --exp-name sac_lv5 --num-cpu 6 --timesteps 5000000 \
+  --buffer-size 100000 --learning-starts 20000 --batch-size 256 \
+  --lr 1e-4 --gamma 0.98 --tau 0.005 --train-freq 1 --gradient-steps -1 \
+  --save-freq 50000 --save-replay-buffer
+
+python train_parallel.py --num-cpu 8 --timesteps 500000 --batch-size 64
+
+C:\Users\buhbu
+ssh -i Key_KLTN.pem ubuntu@192.168.121.168
+
+sudo rm -f /etc/resolv.conf
+echo "nameserver 8.8.8.8" | sudo tee /etc/resolv.conf
+
+Remote Desktop Connection
+ubuntu
+123456789
+
+
+ssh-keygen -R 192.168.121.168
+ssh -i Key_KLTN.pem ubuntu@192.168.121.168
+
+sudo apt update
+sudo apt install xfce4 xfce4-goodies -y
+sudo apt install xrdp -y
+sudo systemctl enable --now xrdp
+echo xfce4-session > ~/.xsession
+sudo systemctl restart xrdp
+sudo passwd ubuntu
+
+git clone -b ver3 https://github.com/nghuucam/MuJoCo-Drones.git
+cd MuJoCo-Drones/
+pip install -e .
+
+wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb\
+sudo apt install ./google-chrome-stable_current_amd64.deb
+rm google-chrome-stable_current_amd64.deb
+
+wget $(echo "aHR0cHM6Ly9yZXBvLmFuYWNvbmRhLmNvbS9hcmNoaXZlL0FuYWNvbmRhMy0yMDI0LjA2LTEtTGludXgteDg2XzY0LnNo" | base64 -d) -O anaconda.sh
+bash anaconda.sh
+source ~/.bashrc
+
+conda create -n mujoco_drone python=3.10 -y
+
+sudo ufw allow 3389/tcp
+sudo systemctl status xrdp
+
+# Tải và cài đặt Miniconda (Dành cho Linux/WSL)
+mkdir -p ~/miniconda3
+wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda3/miniconda.sh
+bash ~/miniconda3/miniconda.sh -b -u -p ~/miniconda3
+rm ~/miniconda3/miniconda.sh
+
+# Khởi tạo conda cho bash shell
+~/miniconda3/bin/conda init bash
+
+# Tải lại cấu hình shell để bắt đầu sử dụng
+source ~/.bashrc
+
+# Lệnh kiểm tra xem cài đặt đã thành công chưa (sẽ hiển thị phiên bản conda)
+conda --version
+
+
+tensorboard --logdir C:\KLTN\MuJoCo-Drones\Graduation\logs
+
+One-Time Milestone Checkpoint kết hợp với Vector Alignment Gating.
+
+
+export MUJOCO_GL=egl
+
+import os, sys
+os.environ["MUJOCO_GL"] = "egl"
+os.environ["PYOPENGL_PLATFORM"] = "egl"
+sys.modules["tensorflow"] = None  # chặn tensorboard/SB3 nạp TF
+
+sudo apt update
+sudo apt install antigravity
+
+
+sudo apt install curl -y
+
+sudo curl -fsSLo /usr/share/keyrings/brave-browser-archive-keyring.gpg https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg
+
+sudo curl -fsSLo /etc/apt/sources.list.d/brave-browser-release.sources https://brave-browser-apt-release.s3.brave.com/brave-browser.sources
+
+sudo apt update
+
+sudo apt install brave-browser -y
+

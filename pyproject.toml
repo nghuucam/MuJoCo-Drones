@@ -1,0 +1,81 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gym-mujoco-drones"
+version = "2.0.0"
+description = "MuJoCo-based autonomous quadrotor navigation & 3D obstacle avoidance using PPO Curriculum Learning and multimodal sensory fusion (FPV + Kinematics)"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.8"
+authors = [
+    {name = "Nguyen Huu Cam", email = "nguyenhuucam231205@gmail.com"}
+]
+keywords = [
+    "reinforcement-learning",
+    "ppo",
+    "curriculum-learning",
+    "drone",
+    "quadrotor",
+    "mujoco",
+    "gymnasium",
+    "obstacle-avoidance",
+    "autonomous-navigation",
+    "computer-vision",
+    "fpv-camera",
+    "mjx",
+    "jax"
+]
+dependencies = [
+    "gymnasium>=0.29.0",
+    "mujoco>=3.0.0",
+    "numpy>=1.21.0",
+    "scipy>=1.9.0",
+    "stable-baselines3>=2.0.0",
+    "torch>=2.0.0",
+    "Pillow>=9.0.0",
+    "matplotlib>=3.5.0",
+    "pandas>=1.3.0",
+    "seaborn>=0.11.0",
+    "tensorboard>=2.10.0",
+    "tqdm>=4.60.0",
+    "optuna>=3.5.0",
+    "plotly>=5.15.0",
+]
+
+[project.optional-dependencies]
+marl = [
+    "pettingzoo>=1.24.0",
+]
+mjx = [
+    "mujoco-mjx>=3.1.0",
+    "jax>=0.4.20",
+    "jaxlib>=0.4.20",
+    "flax>=0.8.0",
+    "sbx-rl>=0.1.0",
+]
+gpu = [
+    "mujoco-mjx>=3.1.0",
+    "jax[cuda12]",
+    "flax>=0.8.0",
+    "sbx-rl>=0.1.0",
+]
+dev = [
+    "pytest>=7.0",
+]
+all = [
+    "pettingzoo>=1.24.0",
+    "pytest>=7.0",
+    "optuna>=3.5.0",
+    "plotly>=5.15.0",
+    "mujoco-mjx>=3.1.0",
+    "flax>=0.8.0",
+    "sbx-rl>=0.1.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["multi_drone_mujoco*", "Graduation*", "Graduation2*"]
+
+[tool.pytest.ini_options]
+testpaths = ["multi_drone_mujoco/tests", "Graduation", "Graduation2"]

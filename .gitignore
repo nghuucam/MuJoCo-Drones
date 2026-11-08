@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+*.egg-info/
+unit_tests/
+demo_gifs/
+logs/
+.pytest_cache/
+MUJOCO_LOG.TXT
+mujoco_menagerie/
+render_demos.py
+render_demos2.py
+*.mp4
+
+# Bỏ qua thư mục models và các file checkpoint nặng
+models/
+*.zip
+**/models/

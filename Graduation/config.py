@@ -1,0 +1,93 @@
+
+start_space = [
+    [0.0, 11.0], [1.0, 11.0], [2.0, 11.0], [-1.0, 11.0], [-2.0, 11.0],
+    [3.0, 11.0], [4.0, 11.0], [-3.0, 11.0], [-4.0, 11.0]
+]
+
+GOAL_Y_RANGES = {
+    0: (7.5, 8.5),
+    1: (-0.5, 0.5),
+    2: (-0.5, 0.5),
+    3: (-5.5, -4.5),
+    4: (-5.5, -4.5),
+    5: (-10.0, -9.0),
+}
+
+GOAL_THRESHOLD = 0.5
+GOAL_Z_MIN = 1.0
+GOAL_Z_MAX = 2.3
+
+OBSTACLE_COUNTS = {
+    0: 0,
+    1: 3,
+    2: 6,
+    3: 8,
+    4: 10,
+    5: 13,
+}
+
+OBSTACLE_POSITIONS = [
+    [-4.50, 7.50],
+    [ 0.00, 7.00],
+    [ 4.50, 7.50],
+    [-2.50, 4.00],
+    [ 2.50, 4.00],
+    [ 0.00, 2.00],
+
+    [-4.00, 0.50],
+    [ 4.00, 0.50],
+    [-2.20, -2.50],
+    [ 2.20, -2.50],
+
+    [-4.20, -5.00],
+    [ 0.00, -5.50],
+
+    [ 4.20, -5.00],
+]
+
+CYLINDER_RADIUS = 0.5
+FIXED_OBSTACLE_HEIGHT = 3.0
+MIN_OBSTACLE_HEIGHT = 3.0
+MAX_OBSTACLE_HEIGHT = 3.0
+
+
+SPIKES_PER_PILLAR_MIN = 10
+SPIKES_PER_PILLAR_MAX = 16
+
+SPIKE_RADIUS_MIN = 0.05
+SPIKE_RADIUS_MAX = 0.20
+SPIKE_LENGTH_MIN = 0.30
+SPIKE_LENGTH_MAX = 1.10
+
+MAX_STEPS = 100
+MAX_STEP_DISTANCE = 2.0
+SUBSTEPS_PER_ACTION = 150
+
+OVERMAP_PAST_GOAL_DISTANCE = 1.0
+OVERMAP_BEHIND_START_DISTANCE = 1.0
+OVERMAP_X_MARGIN = 1.5
+
+MAP_LIMIT_X = 6.5
+MAP_LIMIT_Y = 22.0
+MIN_Z = 0.8
+MAX_Z = 2.5
+
+COLLISION_MARGIN = 0.05
+
+IMG_WIDTH = 64
+IMG_HEIGHT = 64
+CAMERA_FOVY = 75.0
+CAMERA_HALF_FOV = 37.5
+
+MAX_ALPHA_DEG = 35.0
+MAX_BETA_DEG = 30.0
+
+GUI_CAMERA_TRACKING = True
+GUI_CAMERA_DISTANCE = 3.5
+GUI_CAMERA_ELEVATION = -20.0
+GUI_CAMERA_AZIMUTH = -90.0
+GUI_SHOW_RIGHT_UI = False
+GUI_SHOW_LEFT_UI = False
+
+GUI_SHOW_POV_WINDOW = True
+GUI_POV_WINDOW_SIZE = 256

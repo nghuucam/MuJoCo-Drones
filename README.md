@@ -1,0 +1,322 @@
+# AUTONOMOUS QUADROTOR NAVIGATION & 3D OBSTACLE AVOIDANCE USING PPO & CURRICULUM LEARNING
+
+> **Graduation Thesis Project:** Autonomous Quadrotor 3D Obstacle Avoidance via Proximal Policy Optimization (PPO), Curriculum Learning, and Multimodal Sensory Fusion (64x64 FPV Camera + Kinematic State Vector + APF Guidance) in MuJoCo Physics Engine.
+
+---
+
+## 📑 TABLE OF CONTENTS
+1. [Project Overview: OldCode vs. Graduation Modules](#1-project-overview-oldcode-vs-graduation-modules)
+2. [Project Directory Structure](#2-project-directory-structure)
+3. [Environment Setup with Anaconda](#3-environment-setup-with-anaconda)
+4. [Verification of `pyproject.toml` Dependencies](#4-verification-of-pyprojecttoml-dependencies)
+5. [Detailed Guide to `Graduation/` Scripts, Parameters & Execution](#5-detailed-guide-to-graduation-scripts-parameters--execution)
+   - [5.1. `train_parallel_ppo.py` (Multi-Worker Parallel Training)](#51-train_parallel_ppopy--parallel-multi-processing-training)
+   - [5.1.1. `train_parallel_sac.py` (Parallel SAC, Fixed Level 5)](#511-train_parallel_sacpy--parallel-sac-training-fixed-level-5-no-curriculum)
+   - [5.2. `train_ppo_curriculum.py` (Single-Worker Debugging)](#52-train_ppo_curriculumpy--single-worker-debugging)
+   - [5.3. `eval_model_ppo.py` (Model Evaluation & Failure Recording)](#53-eval_model_ppopy--3d-visual-evaluation--failure-buffer-logger)
+   - [5.4. `plot_failed_trajectories.py` (3D/2D Failed Trajectory Visualization)](#54-plot_failed_trajectoriespy--failed-trajectory-plotter)
+   - [5.5. `drone_ppo_curriculum_env.py` (Core Gymnasium Environment)](#55-drone_ppo_curriculum_envpy--core-gymnasium-environment)
+   - [5.6. `config.py` (Global Parameters & Map Layout)](#56-configpy--system-configurations--curriculum-ranges)
+   - [5.7. `analyze_flight_log.py` (Flight Log CSV Analytics)](#57-analyze_flight_logpy--flight-log-analytics)
+6. [Streamlined Reward Function Specification](#6-streamlined-reward-function-specification)
+
+---
+
+## 1. Project Overview: OldCode vs. Graduation Modules
+
+This repository presents an end-to-end research and engineering framework for autonomous quadrotor navigation and obstacle avoidance in cluttered 3D dynamic environments:
+
+* **📁 `OldCode/` (Legacy Phase - Baseline & Motivation for Upgrade):**
+  * Represents the initial phase of the research, implementing **DQN (Deep Q-Network)** and **D3QN (Dueling Double DQN)** algorithms.
+  * *Limitations of Legacy Code:* Discrete action spaces (limited fixed directional steps), oversimplified collision models, absence of onboard vision (FPV camera), and lack of continuous aerodynamic attitude control.
+  * *Archival Purpose:* Preserved as baseline benchmarks and empirical evidence demonstrating the evolutionary progress of the research for the final graduation defense.
+
+* **📁 `Graduation/` (Current Production Phase - Core Thesis Focus):**
+  * Full transition to **PPO (Proximal Policy Optimization)** with **Continuous Action Spaces** formulated in the Aviation Body Frame ($\alpha, \beta, d$).
+  * Implementation of **Curriculum Learning (6 Progressive Difficulty Levels: Level 0 to Level 5)** scaling the target range up to 21.5m and increasing procedurally generated spiked obstacles from 0 to 13 pillars.
+  * Multimodal sensory fusion integrating **64x64 RGB FPV camera feeds** (CNN feature extractor), **18-dimensional kinematic telemetry** (MLP policy), and **Artificial Potential Field (APF) guidance hints**.
+
+---
+
+## 2. Project Directory Structure
+
+```
+MuJoCo-Drones/
+│
+├── README.md                           # Comprehensive documentation and operational guide
+├── pyproject.toml                      # PEP 621 package metadata & complete dependency tree
+├── setup.py                            # Backward compatibility for editable pip installation
+│
+├── Graduation/                         # CORE GRADUATION THESIS MODULE (LATEST PRODUCTION)
+│   ├── config.py                       # Global configurations, map limits, FPV camera & levels
+│   ├── drone_ppo_curriculum_env.py     # Gymnasium environment (MuJoCo C-API + FPV + Spiked Pillars)
+│   ├── train_parallel_ppo.py    # Multi-processing parallel training (SubprocVecEnv)
+│   ├── train_parallel_sac.py    # Parallel SAC training, fixed Level 5 (no curriculum)
+│   ├── train_ppo_curriculum.py         # Single-worker training designed for debugging
+│   ├── eval_model_ppo.py                   # Model evaluation, telemetry monitor & failed trajectory logger
+│   ├── eval_model_sac.py                   # Same evaluation for SAC models
+│   ├── plot_failed_trajectories.py     # 3D and 2D top-down failed trajectory plotter
+│   ├── flight_logger_callback.py       # Custom SB3 callback logging flight telemetry to CSV
+│   ├── analyze_flight_log.py           # Post-training CSV analytics, reward & win-rate curve plotting
+│   ├── models/                         # Checkpoint weights and final exported policies (.zip)
+│   └── logs/                           # TensorBoard event files, CSV logs & trajectory figures
+│
+├── OldCode/                            # LEGACY CODEBASE (FOR BENCHMARKING & PROGRESS COMPARISON)
+│   ├── DQN/                            # DQN implementation (Single, Parallel, Optimize, Analyze, Test)
+│   │   ├── Single/                     # Single-worker DQN training
+│   │   ├── Parallel/                   # Parallel DQN training
+│   │   ├── Optimize/                   # DQN optimization scripts
+│   │   ├── Analyze/                    # Legacy DQN analysis scripts & plots
+│   │   └── Test/                       # DQN evaluation & testing scripts
+│   └── D3QN/                           # Dueling Double DQN implementation
+│       ├── Single/                     # Single-worker D3QN training
+│       ├── Parallel/                   # Parallel D3QN training
+│       ├── Optimize/                   # D3QN optimization scripts
+│       ├── Analyze/                    # Legacy D3QN analysis scripts & plots
+│       └── Test/                       # D3QN evaluation & testing scripts
+│
+└── multi_drone_mujoco/                 # UNDERLYING DRONE SIMULATION ENGINE
+    ├── assets/cf2/                     # Official Crazyflie 2.X 3D meshes (.obj) & physical attributes
+    ├── control/dsl_pid_control.py      # Low-level 48Hz DSL-PID position & attitude controller
+    └── envs/base_aviary.py             # Gymnasium interface wrapping MuJoCo physics bindings
+```
+
+---
+
+## 3. Environment Setup with Anaconda
+
+### Step 1: Create the Conda Virtual Environment
+Open **Anaconda Prompt** or **PowerShell** and execute:
+
+```bash
+# 1. Create a virtual environment with Python 3.10
+conda create -n mujoco_drone python=3.10 -y
+
+# 2. Activate the environment
+conda activate mujoco_drone
+```
+
+### Step 2: Install PyTorch with CUDA Acceleration
+For systems equipped with an NVIDIA GPU (e.g., NVIDIA GeForce RTX 3050 Laptop GPU):
+
+```bash
+# Install PyTorch with CUDA 12.1 runtime
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+```
+
+*Verify CUDA installation:*
+```bash
+python -c "import torch; print('CUDA Available:', torch.cuda.is_available(), '| GPU:', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU')"
+```
+
+### Step 3: Install All Project Dependencies from `pyproject.toml`
+Navigate to the cloned repository directory and install:
+
+```bash
+# Navigate into the project root folder
+cd MuJoCo-Drones
+
+# Install in editable development mode
+pip install -e .
+```
+
+---
+
+## 4. Verification of `pyproject.toml` Dependencies
+
+The [`pyproject.toml`](file:///c:/KLTN/MuJoCo-Drones/pyproject.toml) configuration includes all required libraries for training, simulation, and data analytics:
+
+| Category | Library in `pyproject.toml` | Version | Purpose |
+| :--- | :--- | :---: | :--- |
+| **Physics & RL** | `gymnasium`<br>`mujoco`<br>`stable-baselines3` | $\ge 0.29.0$<br>$\ge 3.0.0$<br>$\ge 2.0.0$ | Standard RL interface, native MuJoCo bindings, vectorized PPO. |
+| **Deep Learning** | `torch` | $\ge 2.0.0$ | Multimodal Actor-Critic neural networks (CNN + MLP). |
+| **Computer Vision** | `Pillow` | $\ge 9.0.0$ | FPV camera frame rendering and array preprocessing. |
+| **Math & Data** | `numpy`<br>`scipy`<br>`pandas` | $\ge 1.21.0$<br>$\ge 1.9.0$<br>$\ge 1.3.0$ | Linear algebra, spatial transformations, tabular flight logging. |
+| **Visualization** | `matplotlib`<br>`seaborn`<br>`tensorboard` | $\ge 3.5.0$<br>$\ge 0.11.0$<br>$\ge 2.10.0$ | 3D/2D trajectory plotting, real-time loss/reward telemetry tracking. |
+| **Utilities** | `tqdm` | $\ge 4.60.0$ | Console progress tracking. |
+
+---
+
+## 5. Detailed Guide to `Graduation/` Scripts, Parameters & Execution
+
+All command lines below should be executed from within the `Graduation/` directory:
+```bash
+cd Graduation
+```
+
+---
+
+### 5.1. `train_parallel_ppo.py` — Parallel Multi-Processing Training
+
+* **Function:** Main training pipeline. Initializes `SubprocVecEnv` across multiple CPU workers running parallel MuJoCo simulations, coupled with GPU acceleration for PPO optimization. Features experiment isolation via `--exp-name` and checkpoint resumption via `--resume-model`.
+* **CLI Parameter Reference:**
+
+| Parameter | Type | Default | Description |
+| :--- | :---: | :---: | :--- |
+| `--exp-name` | `str` | `None` | **Experiment name for complete isolation.** Creates isolated subdirectories for models (`models/<exp_name>/`), TensorBoard logs (`logs/<exp_name>/`), and flight logs (`drone_flight_log_<exp_name>.csv`). Prevents overwriting across concurrent runs. |
+| `--num-cpu` | `int` | `4` | Number of parallel CPU simulation workers (recommended: 4 to 6). |
+| `--timesteps` | `int` | `3000000` | Total environment training timesteps. |
+| `--save-freq` | `int` | `500000` | Periodic checkpoint saving interval (in global timesteps). |
+| `--resume-model` | `str` | `None` | Path to an existing `.zip` model for continued training (Fine-tuning). |
+| `--lr` | `float` | `1e-4` | Learning rate for Adam optimizer. |
+| `--n-steps` | `int` | `512` | Rollout steps per worker before update ($512 \times 6 = 3072$ buffer size). |
+| `--batch-size` | `int` | `256` | Mini-batch size processed by GPU during gradient descent. |
+| `--n-epochs` | `int` | `10` | Optimization epochs per update cycle. |
+| `--clip-range` | `float` | `0.2` | PPO surrogate clipping threshold ($1 - \epsilon$ to $1 + \epsilon$). |
+| `--ent-coef` | `float` | `0.001` | Entropy coefficient encouraging action space exploration. |
+| `--gamma` | `float` | `0.99` | Future reward discount factor. |
+| `--gae-lambda` | `float` | `0.95` | Generalized Advantage Estimation factor. |
+| `--target-kl` | `float` | `0.05` | Target KL divergence threshold for early stopping. |
+| `--device` | `str` | `auto` | Computational backend: `auto`, `cuda`, or `cpu`. |
+| `--no-curriculum` | `flag` | `False` | **Disables curriculum learning**, locking the environment at maximum difficulty (Level 5). |
+| `--start-level` | `int` | `0` | Starting difficulty level (0 to 5). |
+
+* **Execution Examples:**
+
+```bash
+# 1. Full training with Curriculum Learning from scratch (6 CPUs, isolated experiment name 'run_curr'):
+python train_parallel_ppo.py --exp-name run_curr --num-cpu 6 --timesteps 3000000 --save-freq 500000
+
+# 2. Fine-tuning an existing model on Level 5 only:
+python train_parallel_ppo.py --exp-name fine_tune_level5 \
+  --resume-model "[Path/to/your/model.zip]" \
+  --start-level 5 --no-curriculum \
+  --lr 6e-5 --n-epochs 8 --clip-range 0.15 --ent-coef 0.0002 --gamma 0.98 \
+  --num-cpu 6 --timesteps 1000000
+```
+
+---
+
+### 5.1.1. `train_parallel_sac.py` — Parallel SAC Training (Fixed Level 5, No Curriculum)
+
+Same structure as `train_parallel_ppo.py`, but uses **SAC (off-policy)** and always trains on the hardest level (Level 5). There are no curriculum arguments.
+
+| Argument | Default | Description |
+| :--- | :--- | :--- |
+| `--exp-name` | `None` | Isolated experiment name (models/logs folders). Default folders: `models/sac`, `logs/sac` |
+| `--num-cpu` | `4` | Number of parallel workers (`SubprocVecEnv`) |
+| `--timesteps` | `1000000` | Total training steps |
+| `--save-freq` | `100000` | Checkpoint frequency |
+| `--resume-model` / `--resume-buffer` | `None` | Resume from a `.zip` model and optionally a `.pkl` replay buffer |
+| `--save-replay-buffer` | off | Also save the replay buffer with checkpoints (large files) |
+| `--lr` | `3e-4` | Learning rate |
+| `--buffer-size` | `100000` | Replay buffer size (64x64x3 images: ~2.5 GB RAM at 100k) |
+| `--learning-starts` | `10000` | Random exploration steps before updates begin |
+| `--batch-size` | `256` | Mini-batch size |
+| `--tau` / `--gamma` | `0.005` / `0.99` | Target soft-update coefficient / discount factor |
+| `--train-freq` / `--gradient-steps` | `1` / `-1` | Update frequency / gradient steps per update (`-1` = number of collected transitions) |
+| `--ent-coef` / `--target-entropy` | `auto` / `auto` | Entropy coefficient (`auto`, `auto_0.1`, or a float) / target entropy |
+| `--device` | `auto` | `auto`, `cuda`, or `cpu` |
+
+```bash
+python train_parallel_sac.py --exp-name sac_run1 --num-cpu 6 --timesteps 1000000 --buffer-size 100000
+```
+
+---
+
+### 5.2. `train_ppo_curriculum.py` — Single-Worker Debugging
+
+* **Function:** Runs the PPO training pipeline within a single worker environment. Ideal for line-by-line debugging, verifying controller physics, or running on systems with limited CPU core counts.
+* **Execution:**
+```bash
+python train_ppo_curriculum.py --timesteps 500000 --lr 1e-4 --batch-size 64 --start-level 0
+```
+
+---
+
+### 5.3. `eval_model_ppo.py` — 3D Visual Evaluation & Failure Buffer Logger
+
+* **Function:** Loads trained policy weights to evaluate flight performance over $N$ episodes. Features real-time 3D MuJoCo rendering, FPV camera display, comprehensive failure categorizations (Collision, Over-map, Timeout), and **automatically saves complete trajectory data of all failed episodes** to a JSON file.
+* **CLI Parameter Reference:**
+
+| Parameter | Default | Description |
+| :--- | :---: | :--- |
+| `--model-path` | Auto-detect | Path to target `.zip` model file. |
+| `--level` | `5` | Test curriculum level (0 to 5). |
+| `--episodes` | `5` | Number of evaluation episodes. |
+| `--no-gui` | `False` | Disables 3D GUI for high-throughput headless testing. |
+| `--quiet` | `False` | Suppresses per-step telemetry console tables. |
+| `--failed-log` | `logs/failed_trajectories.json` | Path to export failed trajectory logs. |
+
+* **Execution Examples:**
+
+```bash
+# Interactive evaluation of 10 episodes on Level 5 with 3D GUI:
+python eval_model_ppo.py --model-path "[Đường dẫn model của bạn / Path to your model.zip]" --level 5 --episodes 10
+
+# High-throughput headless evaluation (50 episodes) to record failure trajectories:
+python eval_model_ppo.py --model-path "[Đường dẫn model của bạn / Path to your model.zip]" --level 5 --episodes 50 --no-gui --quiet
+
+# Evaluate a SAC model (same arguments; failures saved to logs/failed_trajectories_sac.json):
+python eval_model_sac.py --model-path "[Path to your drone_sac_*.zip]" --level 5 --episodes 50 --no-gui --quiet
+```
+
+---
+
+### 5.4. `plot_failed_trajectories.py` — Failed Trajectory Plotter
+
+* **Function:** Reads `failed_trajectories_ppo.json` / `failed_trajectories_sac.json` generated by `eval_model_ppo.py` / `eval_model_sac.py` and produces publication-quality dual-pane visual analytics for each failed flight:
+  * **Left Subplot (3D Space):** Illustrates pillar cylinders, protruding spikes, Start coordinate, Goal coordinate, drone flight trajectory, and the exact collision point.
+  * **Right Subplot (2D Top-Down XY View):** Highlights obstacle clearance, horizontal evasion paths, step annotations, and the exact termination location.
+* **CLI Parameter Reference:**
+
+| Parameter | Default | Description |
+| :--- | :---: | :--- |
+| `--input` | `logs/failed_trajectories.json` | Path to input JSON file. |
+| `--output-dir` | `logs/failed_plots/` | Directory where `.png` figures are saved. |
+| `--show` | `False` | Opens an interactive Matplotlib 3D viewer. |
+
+* **Execution:**
+```bash
+python plot_failed_trajectories.py --input logs/failed_trajectories.json --show
+```
+
+---
+
+### 5.5. `drone_ppo_curriculum_env.py` — Core Gymnasium Environment
+
+* **Function:** Implements the core simulation environment:
+  * **Observation Space:** Multimodal `Dict({"rgb": Box(64,64,3), "state": Box(18,)})`.
+  * **Action Space:** Continuous `Box(3,)` defining $[\alpha, \beta, d]$ in the Body Frame.
+  * **Procedural Spiked Pillars:** MuJoCo XML generated on reset with randomized spike distributions.
+  * **Guidance Fields:** Artificial Potential Field (APF) calculation providing real-time attractive/repulsive yaw & pitch cues.
+
+---
+
+### 5.6. `config.py` — System Configurations & Curriculum Ranges
+
+* **Function:** Central repository for global constants and hardware simulation limits:
+  * `GOAL_Y_RANGES`: Target Y-coordinate ranges per level (Level 0: $[7.5, 8.5]$ up to Level 5: $[-10.0, -9.0]$).
+  * `OBSTACLE_COUNTS`: Obstacle count scaling per level (Level 0: 0 up to Level 5: 13 pillars).
+  * `MAX_STEPS`: Episode step truncation ceiling (`100` steps).
+  * `COLLISION_MARGIN`: High-precision obstacle proximity margin (`0.05m`).
+  * `IMG_WIDTH`, `IMG_HEIGHT`: FPV camera rendering resolution (`64x64`).
+
+---
+
+### 5.7. `analyze_flight_log.py` — Flight Log Analytics
+
+* **Function:** Parses flight logs (`drone_flight_log_parallel_ver4.csv`) generated during training to compute success rates, collision distributions, and average rewards across curriculum levels, plotting cumulative learning curves.
+* **Execution:**
+```bash
+python analyze_flight_log.py --file logs/drone_flight_log_parallel_ver4.csv
+```
+
+---
+
+## 6. Streamlined Reward Function Specification
+
+The reward function in [`drone_ppo_curriculum_env.py`](file:///c:/KLTN/MuJoCo-Drones/Graduation/drone_ppo_curriculum_env.py) has been refined to eliminate counterproductive constraints (removing the 3x regression penalty, proximity milestone bait, and velocity heading restrictions) to provide the agent with unconstrained behavioral freedom for smooth obstacle avoidance maneuvers:
+
+$$\mathcal{R}_{\text{substep}} = R_{\text{time}} + R_{\text{progress}} + R_{\text{idle}} + R_{\text{proximity}} + R_{\text{altitude}} + R_{\text{terminal}}$$
+
+1. **$R_{\text{time}} = -0.002$:** Per-substep time expenditure motivating the drone to advance toward the destination efficiently.
+2. **$R_{\text{progress}} = +1.0 \times \Delta d_{\text{best}}:$** Distance advancement reward granted when breaking the record minimum distance to the target.
+3. **$R_{\text{idle}} = -0.005:$** Loitering penalty triggered only when the flight corridor ahead is clear ($>1.5\text{m}$) but velocity remains below $0.1\text{m/s}$.
+4. **$R_{\text{proximity}} = -0.005:$** Hazard warning penalty activated when drone distance to any pillar or spike surface falls below $0.1\text{m}$.
+5. **$R_{\text{altitude}} = -0.01:$** Boundary penalty applied when grazing the floor envelope ($z \le 0.85\text{m}$) or ceiling limit ($z \ge 2.45\text{m}$).
+6. **$R_{\text{terminal}}:$** 
+   * **Goal Reached ($Win$):** $+100.0 + 0.5 \times \text{remaining\_steps}$ points.
+   * **Collision ($Collision$):** $-50.0$ points.
+   * **Out of Bounds ($Over Map$):** $-50.0$ points.
+   * **Timeout ($Truncated$):** $-50.0$ points.
