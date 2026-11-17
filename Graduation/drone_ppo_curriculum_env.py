@@ -323,7 +323,7 @@ class DronePPOCurriculumEnv(BaseAviary):
         if cur_p[2] <= config.MIN_Z + 0.05 or cur_p[2] >= config.MAX_Z - 0.05:
             r -= 0.01
 
-        self.collision = self.check_collision()
+        self.collision = self.check_collision(min_d=min_obstacle_dist)
         self.win = self.check_win()
         self.over_map = self.check_overmap()
 
@@ -337,8 +337,10 @@ class DronePPOCurriculumEnv(BaseAviary):
 
         return r
 
-    def check_collision(self):
-        """Kiểm tra va chạm vật lý trực tiếp từ MuJoCo hoặc khoảng cách vi phạm margin 0.05m."""
+    def check_collision(self, min_d=None):
+        """Kiểm tra va chạm vật lý trực tiếp từ MuJoCo hoặc khoảng cách vi phạm margin 0.05m.
+
+        min_d: khoảng cách vật cản nhỏ nhất đã tính sẵn ở cùng vị trí (tránh tính lại)."""
         if self.data.ncon > 0:
             for c in range(self.data.ncon):
                 contact = self.data.contact[c]
@@ -350,7 +352,8 @@ class DronePPOCurriculumEnv(BaseAviary):
                     if "obstacle" in g1 or "obstacle" in g2 or "floor" in g1 or "floor" in g2:
                         return True
 
-        min_d = self._get_min_obstacle_distance()
+        if min_d is None:
+            min_d = self._get_min_obstacle_distance()
         if min_d <= config.COLLISION_MARGIN:
             return True
 
@@ -428,11 +431,26 @@ class DronePPOCurriculumEnv(BaseAviary):
 
         return float(obs_d)
 
-    def _get_min_obstacle_distance(self) -> float:
-        """Tính khoảng cách ngắn nhất từ drone đến tất cả cột trụ VÀ bề mặt các gai xương rồng."""
+    def _get_min_obstacle_distance_legacy(self) -> float:
+        """Bản vòng lặp gốc (giữ lại để đối chiếu trong test_env_equivalence.py)."""
         if not self.obstacle_data:
             return 999.0
         return float(min(self._get_distance_to_obstacle(i) for i in range(len(self.obstacle_data))))
+
+    def _get_min_obstacle_distance(self) -> float:
+        """Tính khoảng cách ngắn nhất từ drone đến tất cả cột trụ VÀ bề mặt các gai (vector hóa NumPy)."""
+        if not self.obstacle_data:
+            return 999.0
+        p = self.pos[0]
+        d_center = np.hypot(p[0] - self._obs_xy[:, 0], p[1] - self._obs_xy[:, 1])
+        d_surf = np.maximum(0.0, d_center - config.CYLINDER_RADIUS)
+        col_d = np.where(p[2] > self._obs_h, np.hypot(d_surf, p[2] - self._obs_h), d_surf)
+        best = float(col_d.min())
+        if self._spike_rads.shape[0] > 0:
+            diff = self._spike_tips - p
+            dist_tips = np.sqrt(np.einsum("ij,ij->i", diff, diff))
+            best = min(best, float(np.maximum(0.0, dist_tips - self._spike_rads).min()))
+        return best
 
     def _compute_apf_hint(self):
         """
@@ -615,6 +633,18 @@ class DronePPOCurriculumEnv(BaseAviary):
       <geom name="geom_obstacle_{i}" type="cylinder" size="{config.CYLINDER_RADIUS} {h_half}" rgba="0.1 0.6 0.25 1" contype="1" conaffinity="1"/>{spikes_xml}
     </body>"""
 
+        # Cache mảng NumPy cố định cho cả episode để vector hóa phép tính khoảng cách
+        self._obs_xy = np.array([[o[0], o[1]] for o in self.obstacle_data], dtype=np.float64).reshape(-1, 2)
+        self._obs_h = np.array([o[2] for o in self.obstacle_data], dtype=np.float64)
+        spike_tips = []
+        spike_rads = []
+        for o in self.obstacle_data:
+            for (sp_x, sp_y, sp_z, sp_len, sp_rad) in o[3]:
+                spike_tips.append([o[0] + sp_x, o[1] + sp_y, sp_z])
+                spike_rads.append(sp_rad)
+        self._spike_tips = np.array(spike_tips, dtype=np.float64).reshape(-1, 3)
+        self._spike_rads = np.array(spike_rads, dtype=np.float64)
+
         goal_x, goal_y, goal_z = goal_pos[0], goal_pos[1], goal_pos[2]
         goal_radius = getattr(config, "GOAL_THRESHOLD", 2.0)
         goal_body_xml = f"""
@@ -651,38 +681,44 @@ class DronePPOCurriculumEnv(BaseAviary):
     <geom name="boundary_line_front" type="box" pos="{mid_x:.3f} {y_min_limit:.3f} 0.006" size="{len_x / 2.0:.3f} {line_w} {line_h}" rgba="1 1 1 0.95" contype="0" conaffinity="0"/>"""
 
         drone_x, drone_y, drone_z = start_pos[0], start_pos[1], start_pos[2]
-        show_m = getattr(self, "show_marker", False)
+        show_m = getattr(self, "show_marker", False) and self.gui_mode
         marker_xml = ""
         if show_m:
             marker_xml = """
       <geom name="drone0_arrow_stem" type="cylinder" pos="0 0 1.8" size="0.12 0.7" rgba="1 1 1 1" contype="0" conaffinity="0"/>
       <geom name="drone0_arrow_pointer" type="sphere" pos="0 0 0.8" size="0.4" rgba="1 1 1 1" contype="0" conaffinity="0"/>"""
 
-        meshdir = str(CF2_MESH_DIR).replace("\\", "/")
-        visual_meshes = "\n".join(
-            f'    <mesh file="{meshdir}/cf2_{i}.obj" name="cf2_vis_{i}"/>'
-            for i in range(7)
-        )
-        cf2_materials = """    <material name="polished_plastic" rgba="0.631 0.659 0.678 1"/>
+        if self.gui_mode:
+            meshdir = str(CF2_MESH_DIR).replace("\\", "/")
+            visual_meshes = "\n".join(
+                f'    <mesh file="{meshdir}/cf2_{i}.obj" name="cf2_vis_{i}"/>'
+                for i in range(7)
+            )
+            cf2_materials = """    <material name="polished_plastic" rgba="0.631 0.659 0.678 1"/>
     <material name="polished_gold" rgba="0.969 0.878 0.6 1"/>
     <material name="medium_gloss_plastic" rgba="0.109 0.184 0.0 1"/>
     <material name="propeller_plastic" rgba="0.792 0.820 0.933 1"/>
     <material name="white" rgba="1 1 1 1"/>
     <material name="body_frame_plastic" rgba="0.102 0.102 0.102 1"/>
     <material name="burnished_chrome" rgba="0.898 0.898 0.898 1"/>"""
-
-        drone_xml = f"""
-    <body name="drone0" pos="{drone_x} {drone_y} {drone_z}" quat="0.707 0 0 -0.707">
-      <freejoint name="drone0_joint"/>
-      <inertial pos="0 0 0" mass="0.027" diaginertia="1.4e-5 1.4e-5 2.1e-5"/>
-      <geom name="drone0_collision" type="cylinder" size="0.06 0.025" rgba="0 0 0 0" contype="1" conaffinity="1"/>
+            drone_vis_geoms = """
       <geom mesh="cf2_vis_0" material="propeller_plastic" class="visual"/>
       <geom mesh="cf2_vis_1" material="medium_gloss_plastic" class="visual"/>
       <geom mesh="cf2_vis_2" material="polished_gold" class="visual"/>
       <geom mesh="cf2_vis_3" material="polished_plastic" class="visual"/>
       <geom mesh="cf2_vis_4" material="burnished_chrome" class="visual"/>
       <geom mesh="cf2_vis_5" material="body_frame_plastic" class="visual"/>
-      <geom mesh="cf2_vis_6" material="white" class="visual"/>{marker_xml}
+      <geom mesh="cf2_vis_6" material="white" class="visual"/>"""
+        else:
+            visual_meshes = ""
+            cf2_materials = ""
+            drone_vis_geoms = ""
+
+        drone_xml = f"""
+    <body name="drone0" pos="{drone_x} {drone_y} {drone_z}" quat="0.707 0 0 -0.707">
+      <freejoint name="drone0_joint"/>
+      <inertial pos="0 0 0" mass="0.027" diaginertia="1.4e-5 1.4e-5 2.1e-5"/>
+      <geom name="drone0_collision" type="cylinder" size="0.06 0.025" rgba="0 0 0 0" contype="1" conaffinity="1"/>{drone_vis_geoms}{marker_xml}
       <site name="drone0_center" pos="0 0 0" group="5"/>
       <site name="drone0_prop0" pos="0.028 0.028 0" group="5"/>
       <site name="drone0_prop1" pos="-0.028 0.028 0" group="5"/>
