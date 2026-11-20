@@ -472,6 +472,10 @@ class DronePPOCurriculumEnv(BaseAviary):
             return 0.0, 0.0
         u_goal = v_goal / d_goal
 
+        lookahead_range = float(getattr(config, "APF_LOOKAHEAD_RANGE", 1.0))
+        repulsion_range = float(getattr(config, "APF_REPULSION_RANGE", 0.35))
+        repulsion_gain = float(getattr(config, "APF_REPULSION_GAIN", 0.6))
+
         r_corridor = config.CYLINDER_RADIUS + 0.35
         max_deflect_angle = 0.0
         best_deflect_dir = 0.0
@@ -480,7 +484,7 @@ class DronePPOCurriculumEnv(BaseAviary):
             v_obs = np.array([ox, oy]) - cur_p[:2]
             proj = float(np.dot(v_obs, u_goal))
 
-            if 0.15 < proj < min(d_goal, 3.5):
+            if lookahead_range > 0.15 and 0.15 < proj < min(d_goal, lookahead_range):
                 lat_vec = v_obs - proj * u_goal
                 lat_dist = float(np.linalg.norm(lat_vec))
 
@@ -518,12 +522,12 @@ class DronePPOCurriculumEnv(BaseAviary):
                     d_surf = d_sp
                     norm_rep = v_tip[:2] / (dist_tip + 1e-6)
 
-            if d_surf < 0.6:
-                rep_mag = (0.6 - d_surf) / 0.6
+            if repulsion_range > 0.0 and d_surf < repulsion_range:
+                rep_mag = (repulsion_range - d_surf) / repulsion_range
                 f_rep_xy += rep_mag * norm_rep
 
         if np.linalg.norm(f_rep_xy) > 1e-3:
-            v_des = np.array([math.cos(desired_yaw), math.sin(desired_yaw)]) + 1.2 * f_rep_xy
+            v_des = np.array([math.cos(desired_yaw), math.sin(desired_yaw)]) + repulsion_gain * f_rep_xy
             desired_yaw = math.atan2(v_des[1], v_des[0])
 
         cur_yaw = float(cur_rpy[2])
@@ -583,16 +587,64 @@ class DronePPOCurriculumEnv(BaseAviary):
         rgb = self._cam_renderer.render()
         return rgb
 
+    def _sample_obstacle_positions(self, num_obstacles: int, start_pos, goal_pos):
+        """Sinh tọa độ (x, y) ngẫu nhiên cho các cột trụ giữa điểm xuất phát và đích,
+        đảm bảo khoảng cách an toàn quanh start/goal và giữa các cột với nhau."""
+        if num_obstacles <= 0:
+            return []
+
+        if not getattr(config, "RANDOMIZE_OBSTACLE_POSITIONS", True):
+            return [tuple(p) for p in config.OBSTACLE_POSITIONS[:num_obstacles]]
+
+        x_min, x_max = getattr(config, "OBSTACLE_X_RANGE", (-4.5, 4.5))
+        min_spacing = float(getattr(config, "OBSTACLE_MIN_SPACING", 2.8))
+        clearance_sg = float(getattr(config, "OBSTACLE_CLEARANCE_START_GOAL", 2.5))
+
+        y_low = float(goal_pos[1]) + clearance_sg
+        y_high = float(start_pos[1]) - clearance_sg
+        if y_low >= y_high:
+            return [tuple(p) for p in config.OBSTACLE_POSITIONS[:num_obstacles]]
+
+        placed = []
+        sx, sy = float(start_pos[0]), float(start_pos[1])
+        gx, gy = float(goal_pos[0]), float(goal_pos[1])
+
+        for i in range(num_obstacles):
+            chosen = None
+            for spacing_scale, max_tries in ((1.0, 150), (0.85, 60)):
+                req_spacing = min_spacing * spacing_scale
+                for _ in range(max_tries):
+                    cx = float(np.random.uniform(x_min, x_max))
+                    cy = float(np.random.uniform(y_low, y_high))
+                    if math.hypot(cx - sx, cy - sy) < clearance_sg:
+                        continue
+                    if math.hypot(cx - gx, cy - gy) < clearance_sg:
+                        continue
+                    if any(math.hypot(cx - px, cy - py) < req_spacing for px, py in placed):
+                        continue
+                    chosen = (round(cx, 2), round(cy, 2))
+                    break
+                if chosen is not None:
+                    break
+
+            if chosen is None:
+                fallback = config.OBSTACLE_POSITIONS[i % len(config.OBSTACLE_POSITIONS)]
+                chosen = (float(fallback[0]), float(fallback[1]))
+
+            placed.append(chosen)
+
+        return placed
+
     def _generate_cactus_xml(self, start_pos, goal_pos, level):
         """Sinh chuỗi XML mô phỏng MuJoCo linh hoạt với các cột trụ có gai xương rồng ngẫu nhiên."""
         num_obstacles = config.OBSTACLE_COUNTS.get(level, 3)
         self.obstacle_data = []
 
+        obstacle_positions = self._sample_obstacle_positions(num_obstacles, start_pos, goal_pos)
         obstacle_bodies_xml = ""
 
         for i in range(num_obstacles):
-            base_pos = config.OBSTACLE_POSITIONS[i]
-            ox, oy = base_pos[0], base_pos[1]
+            ox, oy = obstacle_positions[i]
             h_total = float(getattr(config, "FIXED_OBSTACLE_HEIGHT", 3.0))
             h_half = h_total / 2.0
 
