@@ -14,7 +14,8 @@ for path in [current_dir, parent_dir, workspace_root]:
         sys.path.insert(0, path)
 
 from drone_ppo_curriculum_env import DronePPOCurriculumEnv
-from stable_baselines3 import SAC
+#from stable_baselines3 import SAC
+from sbx import SAC
 from stable_baselines3.common.vec_env import SubprocVecEnv, VecMonitor
 from stable_baselines3.common.callbacks import CheckpointCallback
 import config
